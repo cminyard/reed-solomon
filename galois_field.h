@@ -3,10 +3,7 @@
  * @brief Finite Field (GF(2^m)) routines for Reed–Solomon encoding/decoding.
  *
  * This header declares:
- *   - Global RS parameters (m, N, K, T)
- *   - GF(2^m) tables (exp/log)
- *   - Generator polynomial storage
- *   - Per-symbol bit decomposition table
+ *   - galois_field structure
  *   - Basic GF arithmetic functions
  *   - Initialization routine for generating all tables
  *

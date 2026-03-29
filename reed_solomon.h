@@ -1,16 +1,14 @@
 /**
- * @file rs_gf.h
- * @brief Finite Field (GF(2^m)) routines for Reed–Solomon encoding/decoding.
+ * @file reed_solomon.h
+ * @brief Reed–Solomon encoding/decoding.
  *
  * This header declares:
- *   - Global RS parameters (m, N, K, T)
- *   - GF(2^m) tables (exp/log)
- *   - Generator polynomial storage
- *   - Per-symbol bit decomposition table
- *   - Basic GF arithmetic functions
- *   - Initialization routine for generating all tables
+ *   - reed_solomon structure
+ *   - reed_solomon encoder structure
+ *   - reed_solomon decoder structure
+ *   - Encoder, decoder, and initialization functions
  *
- * All implementation details are in rs_gf.c.
+ * All implementation details are in reed_solomon.c.
  */
 
 #ifndef REED_SOLOMON_H
