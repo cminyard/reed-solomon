@@ -4,7 +4,7 @@
 #include "reed_solomon.h"
 
 int
-reed_solomon_init(struct reed_solomon *rs, int m, int N, int K)
+reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T)
 {
     unsigned int i, j;
     galois_field_val tmp[GALOIS_FIELD_MAX];
@@ -16,15 +16,11 @@ reed_solomon_init(struct reed_solomon *rs, int m, int N, int K)
     if (err)
 	return err;
 
-    rs->m = m;
-    rs->N = N;
-    rs->K = K;
-    rs->T = N - K;
-
-    /* Number of shortened symbols */
-    if (rs->gf.Np < rs->N)
+    if (T >= rs->gf.Np)
 	return 1;
-    rs->S = rs->gf.Np - rs->N;
+
+    rs->m = m;
+    rs->T = T;
 
     /* ---------------------------------------------------------------------
      * Generator polynomial construction (degree T)
@@ -80,20 +76,27 @@ reed_solomon_init(struct reed_solomon *rs, int m, int N, int K)
  *
  * Produces a codeword of:
  *      [K info symbols][T parity symbols]
- *
- * @param inf_bits  Input bit array (K * m bits).
- * @param code_bits Output bit array ((K + T) * m bits).
  */
-void
-reed_solomon_encode(struct reed_solomon_encoder *rse, uint8_t *buf)
+int
+reed_solomon_encode(struct reed_solomon_encoder *rse,
+		    uint8_t *buf, unsigned int len)
 {
     struct reed_solomon *rs = rse->rs;
     unsigned int i, j;
 
+    if (len > rs->gf.Np)
+	return 1;
+    if (len <= rs->T)
+	return 1;
+    rse->N = len;
+    rse->K = len - rs->T;
+    /* Number of shortened symbols */
+    rse->S = rs->gf.Np - rse->N;
+
     /* -------------------------------------------------------------
      * Initialize T parity registers to zero
      * ------------------------------------------------------------- */
-    for (i = 0; i < rs->K; i++)
+    for (i = 0; i < rse->K; i++)
 	rse->u[i] = buf[i];
     for (i = 0; i < rs->T; i++)
 	rse->parity[i] = 0;
@@ -105,7 +108,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse, uint8_t *buf)
      * This produces the same result as encoding an N-symbol RS code
      * and then shortening it to length N.
      * ------------------------------------------------------------- */
-    for (i = 0; i < rs->S; i++) {
+    for (i = 0; i < rse->S; i++) {
 	galois_field_val fb = rse->parity[0];
 
 	for (j = 0; j < rs->T - 1; j++)
@@ -120,7 +123,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse, uint8_t *buf)
     /* -------------------------------------------------------------
      * Feed the actual K information symbols
      * ------------------------------------------------------------- */
-    for (i = 0; i < rs->K; i++) {
+    for (i = 0; i < rse->K; i++) {
 	galois_field_val fb = galois_field_add(buf[i], rse->parity[0]);
 
 	for (j = 0; j < rs->T - 1; j++)
@@ -133,7 +136,9 @@ reed_solomon_encode(struct reed_solomon_encoder *rse, uint8_t *buf)
     }
 
     for (i = 0; i < rs->T; i++)
-	buf[i + rs->K] = rse->parity[i];
+	buf[i + rse->K] = rse->parity[i];
+
+    return 0;
 }
 
 
@@ -382,20 +387,31 @@ correct_errors(struct reed_solomon_decoder *rsd,
  *       code_bits : Ns symbols
  *       info_bits : first K symbols
  * ------------------------------------------------------------------------- */
-unsigned int
-reed_solomon_decode(struct reed_solomon_decoder *rsd, uint8_t *buf)
+int
+reed_solomon_decode(struct reed_solomon_decoder *rsd,
+		    uint8_t *buf, unsigned int len,
+		    unsigned int *err_count)
 {
     struct reed_solomon *rs = rsd->rs;
     unsigned int t = rs->T / 2;
     unsigned int i;
     unsigned int count = 0;
 
+    if (len > rs->gf.Np)
+	return 1;
+    if (len <= rs->T)
+	return 1;
+    rsd->N = len;
+    rsd->K = len - rs->T;
+    /* Number of shortened symbols */
+    rsd->S = rs->gf.Np - rsd->N;
+
     /* Build parent-length buffer */
-    for (i = 0; i < rs->S; i++)
+    for (i = 0; i < rsd->S; i++)
 	rsd->recv_sym_p[i] = 0;
 
-    for (i = 0; i < rs->N; i++)
-	rsd->recv_sym_p[rs->S + i] = buf[i];
+    for (i = 0; i < rsd->N; i++)
+	rsd->recv_sym_p[rsd->S + i] = buf[i];
 
     /* Syndromes */
     compute_syndromes(rs, rsd->recv_sym_p, rsd->synd);
@@ -426,8 +442,10 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd, uint8_t *buf)
     }
 
     /* Output K information symbols */
-    for (i = 0; i < rs->K; i++)
-	buf[i] = rsd->recv_sym_p[rs->S + i];
+    for (i = 0; i < rsd->K; i++)
+	buf[i] = rsd->recv_sym_p[rsd->S + i];
 
-    return count;
+    *err_count = count;
+
+    return 0;
 }

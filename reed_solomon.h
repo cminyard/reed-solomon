@@ -19,9 +19,6 @@
 
 struct reed_solomon {
     unsigned int m;  /* GF size parameter m → GF(2^m) */
-    unsigned int N;  /* Codeword length (shortened) */
-    unsigned int S;  /* Shortening amount = gf.Np - N */
-    unsigned int K;  /* Number of information symbols */
     unsigned int T;  /* Number of parity symbols (generator degree) */
 
     struct galois_field gf;
@@ -40,18 +37,20 @@ struct reed_solomon {
  *
  * @param rs The structure to fill in with data
  * @param m  GF size parameter (1–8), GF size = 2^m
- * @param N  Codeword length (shortened)
- * @param K  Information symbol length
+ * @param T  Number of parity bytes
  *
- * @return 0 on success, negative on failure.
+ * @return 0 on success, non-zero on failure.
  */
-int reed_solomon_init(struct reed_solomon *rs, int m, int N, int K);
+int reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T);
 
 struct reed_solomon_encoder {
-    /* FIXME - allocate these based on K and T. */
-
     struct reed_solomon *rs;
 
+    unsigned int N;  /* Codeword length (shortened) */
+    unsigned int S;  /* Shortening amount = gf.Np - N */
+    unsigned int K;  /* Number of information symbols */
+
+    /* FIXME - allocate these based on K and T. */
     /*
      * FIXME - do these need to be galois_field_val?  If they are uint8_t,
      * they can be used directly from the user buffer provided.
@@ -66,12 +65,24 @@ struct reed_solomon_encoder {
  * @brief Systematic Reed–Solomon encoding.
  *
  * @param rse A encoder structure with rs set.
- * @param buf Buffer of N bytes, the last (N - K) bits are replaced with parity.
+ * @param buf Buffer of len + T bytes, the last T bytes are replaced with parity.
+ * @param len Length of buf, including the T bytes.
+ *
+ * The length of the buffer may be up to 2^M symbols long, meaning
+ * that the actual data may be (2^M - T) symbols long.
+ *
+ * @return 0 on success, non-zero on error.
  */
-void reed_solomon_encode(struct reed_solomon_encoder *rse, uint8_t *buf);
+int reed_solomon_encode(struct reed_solomon_encoder *rse,
+			 uint8_t *buf, unsigned int len);
 
 struct reed_solomon_decoder {
     struct reed_solomon *rs;
+
+    unsigned int N;  /* Codeword length (shortened) */
+    unsigned int S;  /* Shortening amount = gf.Np - N */
+    unsigned int K;  /* Number of information symbols */
+
     /*
      * FIXME - allocate these based on parms. Make sure to fix the
      * memset in reed_solomon_decode().
@@ -101,10 +112,18 @@ struct reed_solomon_decoder {
 /**
  * @brief Decode a shortened systematic Reed–Solomon codeword.
  *
- * @param buf Buffer, N bytes long.
+ * @param buf Buffer, including the parity.
+ * @param lan Length of the buffer.
  *
  * The first K bytes of buf are replaced with the corrected data.
+ *
+ * The length of the buffer may be up to 2^M symbols long, meaning
+ * that the actual data may be (2^M - T), or K symbols long.
+ *
+ * @return 0 on success, non-zero on error.
  */
-unsigned int reed_solomon_decode(struct reed_solomon_decoder *rsd, uint8_t *buf);
+int reed_solomon_decode(struct reed_solomon_decoder *rsd,
+			uint8_t *buf, unsigned int len,
+			unsigned int *err_count);
 
 #endif /* REED_SOLOMON_H */

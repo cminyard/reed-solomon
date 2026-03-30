@@ -17,9 +17,7 @@ test_one(unsigned int num_errs,
     uint8_t origbuf[255], buf[255];
     bool errpos[255] = { false };
     unsigned int err = 0;
-#if ERR_COUNT_CHECK
     unsigned int errcount = 0;
-#endif
 
     for (i = 0; i < 223; i++) {
 	buf[i] = rand();
@@ -29,7 +27,7 @@ test_one(unsigned int num_errs,
 	buf[i] = 0;
 
     /* Add the parity bytes. */
-    reed_solomon_encode(rse, buf);
+    reed_solomon_encode(rse, buf, 255);
 
 #if 0
     printf("Encoded:");
@@ -43,7 +41,7 @@ test_one(unsigned int num_errs,
 
     /* Inject some errors. */
     for (i = 0; i < num_errs; ) {
-	unsigned int pos = rand() % rse->rs->N * 8;
+	unsigned int pos = rand() % 255 * 8;
 
 	if (errpos[pos / 8])
 	    continue;
@@ -52,12 +50,10 @@ test_one(unsigned int num_errs,
 	errpos[pos / 8] = true;
 	i++;
     }
+    reed_solomon_decode(rsd, buf, 255, &errcount);
 #if ERR_COUNT_CHECK
-    errcount = reed_solomon_decode(rsd, buf);
     if (errcount != num_errs)
 	printf("Error count mismatch: %u %u\n", num_errs, errcount);
-#else
-    reed_solomon_decode(rsd, buf);
 #endif
 
     for (i = 0; i < 223; i++) {
@@ -114,7 +110,7 @@ main(int argc, char *argv[])
     }
     srand(time(NULL));
 
-    reed_solomon_init(&rs, 8, 255, 223);
+    reed_solomon_init(&rs, 8, 32);
 
     for (i = 0; ; i++) {
 	unsigned int errs = test_loop(loops, i, &rse, &rsd);
