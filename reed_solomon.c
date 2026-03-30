@@ -186,9 +186,9 @@ berlekamp_massey(struct reed_solomon_decoder *rsd,
 		 const galois_field_val *S, galois_field_val *sigma_out)
 {
     struct reed_solomon *rs = rsd->rs;
-    unsigned t = rs->T / 2;
-    unsigned L = 0;
-    unsigned m_shift = 1;
+    unsigned int t = rs->T / 2;
+    unsigned int L = 0;
+    unsigned int m_shift = 1;
     galois_field_val bbb = 1;
     unsigned int i, n;
 
@@ -198,13 +198,13 @@ berlekamp_massey(struct reed_solomon_decoder *rsd,
     rsd->C[0] = 1;
     rsd->B[0] = 1;
 
-    for (n = 0; n < rs->T; n++) {
+    for (n = 0; n < rs->T - 1; n++) {
 	galois_field_val d = S[n];
 
 	for (i = 1; i <= L; i++)
 	    d = galois_field_add(d,
-				 galois_field_mul(&rs->gf, rsd->C[i], S[n - i]));
-
+				 galois_field_mul(&rs->gf,
+						  rsd->C[i], S[n - i]));
 	if (d != 0) {
 	    galois_field_val coef;
 
@@ -218,7 +218,9 @@ berlekamp_massey(struct reed_solomon_decoder *rsd,
 		int idx = i + m_shift;
 
 		if (idx <= rs->T)
-		    rsd->C[idx] ^= galois_field_mul(&rs->gf, coef, rsd->B[i]);
+		    rsd->C[idx] = galois_field_add(rsd->C[idx],
+						   galois_field_mul(&rs->gf,
+							    coef, rsd->B[i]));
 	    }
 
 	    if (2 * L <= n) {
@@ -236,14 +238,8 @@ berlekamp_massey(struct reed_solomon_decoder *rsd,
 	}
     }
 
-    if (L > t)
-	/* We return at most T/2 for L. */
-	L = t;
-
     /* Copy result */
-    for (i = 0; i <= L; i++)
-	sigma_out[i] = 0;
-    for (i = 0; i <= L; i++)
+    for (i = 0; i <= t && i <= L; i++)
 	sigma_out[i] = rsd->C[i];
 
     /* Ensure σ(0) = 1 */
@@ -267,7 +263,7 @@ chien_search(struct reed_solomon *rs,
     unsigned int count = 0;
     unsigned int i, j;
 
-    for (i = 0; i < rs->gf.Np; i++) {
+    for (i = 0; i <= rs->gf.Np; i++) {
 	galois_field_val x_inv;
 	galois_field_val sum = 0;
 	galois_field_val power = 1;
@@ -445,13 +441,17 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 	/* BM → locator polynomial */
 	unsigned int L = berlekamp_massey(rsd, rsd->synd, rsd->sigma);
 
-	/* Chien search */
-	count = chien_search(rs, rsd->sigma, L, rsd->error_pos);
+	if (L > t) {
+	    count = L;
+	} else {
+	    /* Chien search */
+	    count = chien_search(rs, rsd->sigma, L, rsd->error_pos);
 
-	/* Correct */
-	if (count > 0 && count <= t)
-	    correct_errors(rsd, rsd->recv_sym_p,
-			   rsd->synd, rsd->error_pos, count);
+	    /* Correct */
+	    if (count > 0 && count <= t)
+		correct_errors(rsd, rsd->recv_sym_p,
+			       rsd->synd, rsd->error_pos, count);
+	}
     }
 
     *err_count = count;
