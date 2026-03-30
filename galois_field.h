@@ -14,6 +14,7 @@
 #define GALOIS_FIELD_H
 
 #include <stdint.h>
+#include <assert.h>
 
 /* Define for debugging with valgrind. */
 #define GF_DYN_ALLOC 1
@@ -30,7 +31,7 @@
 #define GALOIS_FIELD_EXP_MAX 8
 #define GALOIS_FIELD_MAX (1 << GALOIS_FIELD_EXP_MAX)
 
-typedef uint16_t galois_field_val;
+typedef uint8_t galois_field_val;
 
 /* -------------------------------------------------------------------------
  * GF tables and polynomial data
@@ -41,7 +42,9 @@ struct galois_field {
     galois_field_val *exp;
     galois_field_val *log;
 #else
-    galois_field_val exp[2 * GALOIS_FIELD_MAX];/* Exponential table */
+    /* This is one bigger than necessary, see galois_field.c. */
+    galois_field_val exp[GALOIS_FIELD_MAX];    /* Exponential table */
+
     galois_field_val log[GALOIS_FIELD_MAX];    /* Logarithm table */
 #endif
 };
@@ -87,8 +90,7 @@ galois_field_div(struct galois_field *gf,
 {
     int idx;
 
-    if (b == 0) /* Division by zero. */
-	return 0;
+    assert(b > 0); /* Division by zero. */
 
     if (a == 0)
 	return 0;
@@ -129,6 +131,10 @@ galois_field_inv(struct galois_field *gf, galois_field_val a)
     if (a == 0)
 	return 0;
 
+    /*
+     * gf->exp has a value for gf->Np to handle when gf->log[a] == 0.
+     * See galois_field.c for details.
+     */
     return gf->exp[gf->Np - gf->log[a]];
 }
 

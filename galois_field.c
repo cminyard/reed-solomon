@@ -16,7 +16,7 @@
 #include "galois_field.h"
 
 /* Primitive polynomials for m = 1..8 (CCSDS/NASA compatible) */
-static const galois_field_val primitive_poly[9] = {
+static const uint16_t primitive_poly[9] = {
     0x00, /* unused (m=0) */
     0x03, /* m=1 */
     0x07, /* m=2 */
@@ -33,15 +33,14 @@ static const galois_field_val primitive_poly[9] = {
  * ------------------------------------------------------------------------- */
 int galois_field_init(struct galois_field *gf, int m)
 {
-    galois_field_val prim;
-    galois_field_val x;
+    uint16_t prim, x;
     unsigned int i;
 
     /* Field size (2^m - 1) */
     gf->Np = (1 << m) - 1;
 
 #if GF_DYN_ALLOC
-    gf->exp = malloc(sizeof(galois_field_val) * 2 * GALOIS_FIELD_MAX);
+    gf->exp = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
     gf->log = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
 #endif
 
@@ -50,6 +49,7 @@ int galois_field_init(struct galois_field *gf, int m)
 
     /* Build exp/log tables */
     x = 1;
+    gf->log[0] = 0;
     for (i = 0; i < gf->Np; i++) {
 	gf->exp[i] = x;
 	gf->log[x] = i;
@@ -58,12 +58,11 @@ int galois_field_init(struct galois_field *gf, int m)
 	if (x & (1u << m))
 	    x ^= prim;
     }
-
-    /* Extend exp table for mod-free multiplication */
-    for (i = gf->Np; i < 2 * gf->Np; i++)
-	gf->exp[i] = gf->exp[i - gf->Np];
-
-    gf->log[0] = 0;
+    /*
+     * gf->exp[i] is one larger than necessary to avoid having to do a mod
+     * in galois_field_inv().
+     */
+    gf->exp[gf->Np] = gf->exp[0];
 
     return 0;
 }

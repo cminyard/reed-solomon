@@ -49,7 +49,7 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T)
 	    if (j <= i)
 		term = galois_field_mul(&rs->gf, tmp[j], rs->gf.exp[i]);
 	    else
-		term =0;
+		term = 0;
 	    rs->generator[j] = galois_field_add(tmp[j - 1], term);
 	}
 	rs->generator[0] = galois_field_mul(&rs->gf,
