@@ -164,7 +164,9 @@ compute_syndromes(struct reed_solomon *rs,
 	for (j = 0; j < rs->gf.Np; j++) {
 	    unsigned int k = (si * j) % rs->gf.Np;
 
-	    sum ^= galois_field_mul(&rs->gf, recv_sym_p[j], rs->gf.exp[k]);
+	    sum = galois_field_add(sum,
+				   galois_field_mul(&rs->gf, recv_sym_p[j],
+						    rs->gf.exp[k]));
 	}
 	S[i] = sum;
     }
@@ -200,7 +202,8 @@ berlekamp_massey(struct reed_solomon_decoder *rsd,
 	galois_field_val d = S[n];
 
 	for (i = 1; i <= L; i++)
-	    d ^= galois_field_mul(&rs->gf, rsd->C[i], S[n - i]);
+	    d = galois_field_add(d,
+				 galois_field_mul(&rs->gf, rsd->C[i], S[n - i]));
 
 	if (d != 0) {
 	    galois_field_val coef;
@@ -233,10 +236,14 @@ berlekamp_massey(struct reed_solomon_decoder *rsd,
 	}
     }
 
+    if (L > t)
+	/* We return at most T/2 for L. */
+	L = t;
+
     /* Copy result */
-    for (i = 0; i <= t; i++)
+    for (i = 0; i <= L; i++)
 	sigma_out[i] = 0;
-    for (i = 0; i <= L && i <= t; i++)
+    for (i = 0; i <= L; i++)
 	sigma_out[i] = rsd->C[i];
 
     /* Ensure σ(0) = 1 */
@@ -272,7 +279,9 @@ chien_search(struct reed_solomon *rs,
 
 	for (j = 0; j <= L; j++) {
 	    if (sigma[j] != 0)
-		sum ^= galois_field_mul(&rs->gf, sigma[j], power);
+		sum = galois_field_add(sum,
+				       galois_field_mul(&rs->gf,
+							sigma[j], power));
 	    power = galois_field_mul(&rs->gf, power, x_inv);
 	}
 
@@ -403,6 +412,7 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
     unsigned int t = rs->T / 2;
     unsigned int i;
     unsigned int count = 0;
+    bool all_zero = true;
 
     if (len > rs->gf.Np)
 	return 1;
@@ -424,7 +434,6 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
     compute_syndromes(rs, rsd->recv_sym_p, rsd->synd);
 
     /* Check if all-zero syndromes → no errors */
-    bool all_zero = true;
     for (i = 0; i < rs->T; i++) {
 	if (rsd->synd[i] != 0) {
 	    all_zero = false;
@@ -436,9 +445,6 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 	/* BM → locator polynomial */
 	unsigned int L = berlekamp_massey(rsd, rsd->synd, rsd->sigma);
 
-	if (L > t)
-	    L = t;
-
 	/* Chien search */
 	count = chien_search(rs, rsd->sigma, L, rsd->error_pos);
 
@@ -448,11 +454,14 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 			   rsd->synd, rsd->error_pos, count);
     }
 
+    *err_count = count;
+
+    if (count == 0) /* No errors. */
+	return 0;
+
     /* Output K information symbols */
     for (i = 0; i < rsd->K; i++)
 	buf[i] = rsd->recv_sym_p[rsd->S + i];
-
-    *err_count = count;
 
     return 0;
 }
