@@ -263,7 +263,7 @@ chien_search(struct reed_solomon *rs,
     unsigned int count = 0;
     unsigned int i, j;
 
-    for (i = 0; i <= rs->gf.Np; i++) {
+    for (i = 0; i < rs->gf.Np; i++) {
 	galois_field_val x_inv;
 	galois_field_val sum = 0;
 	galois_field_val power = 1;
