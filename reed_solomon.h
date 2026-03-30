@@ -60,12 +60,9 @@ struct reed_solomon_encoder {
 
 #if GF_DYN_ALLOC
     galois_field_val *u;
-    galois_field_val *parity;
 #else
     /* Needs to be 2^M - T elements; */
     galois_field_val u[GALOIS_FIELD_MAX];
-    /* Needs to be T elements. */
-    galois_field_val parity[REED_SOLOMON_MAX_T];
 #endif
 };
 
@@ -85,7 +82,7 @@ void reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
  * @return 0 on success, non-zero on error.
  */
 int reed_solomon_encode(struct reed_solomon_encoder *rse,
-			 uint8_t *buf, unsigned int len);
+			uint8_t *buf, unsigned int len, uint8_t *parity);
 
 /* We can process up to T/2 errors.  More than that we ignore. */
 #define REED_SOLOMON_MAX_ERR (REED_SOLOMON_MAX_T / 2)

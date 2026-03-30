@@ -27,7 +27,7 @@ test_one(unsigned int num_errs,
 	buf[i] = 0;
 
     /* Add the parity bytes. */
-    reed_solomon_encode(rse, buf, 255);
+    reed_solomon_encode(rse, buf, 223, buf + 223);
 
 #if 0
     printf("Encoded:");

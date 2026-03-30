@@ -90,12 +90,13 @@ galois_field_div(struct galois_field *gf,
 {
     int idx;
 
+    /* FIXME - handle this. */
     assert(b > 0); /* Division by zero. */
 
     if (a == 0)
 	return 0;
 
-    idx = gf->log[a] - gf->log[b];
+    idx = (int) gf->log[a] - (int) gf->log[b];
     if (idx < 0)
 	idx += gf->Np;
 

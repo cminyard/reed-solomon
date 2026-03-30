@@ -72,7 +72,6 @@ reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
     rse->rs = rs;
 #if GF_DYN_ALLOC
     rse->u = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
-    rse->parity = malloc(sizeof(galois_field_val) * REED_SOLOMON_MAX_T);
 #endif
 }
 
@@ -84,27 +83,33 @@ reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
  */
 int
 reed_solomon_encode(struct reed_solomon_encoder *rse,
-		    uint8_t *buf, unsigned int len)
+		    uint8_t *inbuf, unsigned int len, uint8_t *parity)
 {
     struct reed_solomon *rs = rse->rs;
     unsigned int i, j;
+    uint8_t *data;
 
-    if (len > rs->gf.Np)
+    if (len > rs->gf.Np - rs->T)
 	return 1;
-    if (len <= rs->T)
-	return 1;
-    rse->N = len;
-    rse->K = len - rs->T;
+    rse->N = len + rs->T;
+    rse->K = len;
     /* Number of shortened symbols */
     rse->S = rs->gf.Np - rse->N;
 
+    if (rse->S == 0) {
+	/* No padding, we can just use the buffer. */
+	data = inbuf;
+    } else {
+	/* Padding, we have to copy. */
+	data = rse->u;
+	for (i = 0; i < rse->K; i++)
+	    data[i] = inbuf[i];
+    }
     /* -------------------------------------------------------------
      * Initialize T parity registers to zero
      * ------------------------------------------------------------- */
-    for (i = 0; i < rse->K; i++)
-	rse->u[i] = buf[i];
     for (i = 0; i < rs->T; i++)
-	rse->parity[i] = 0;
+	parity[i] = 0;
 
     /* -------------------------------------------------------------
      * Handle shortening:
@@ -114,34 +119,31 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
      * and then shortening it to length N.
      * ------------------------------------------------------------- */
     for (i = 0; i < rse->S; i++) {
-	galois_field_val fb = rse->parity[0];
+	galois_field_val fb = parity[0];
 
 	for (j = 0; j < rs->T - 1; j++)
-	    rse->parity[j] =
-		galois_field_add(rse->parity[j + 1],
+	    parity[j] =
+		galois_field_add(parity[j + 1],
 				 galois_field_mul(&rs->gf, fb,
 						  rs->generator[j + 1]));
-	rse->parity[rs->T - 1] = galois_field_mul(&rs->gf, fb,
-						  rs->generator[rs->T]);
+	parity[rs->T - 1] = galois_field_mul(&rs->gf, fb,
+					     rs->generator[rs->T]);
     }
 
     /* -------------------------------------------------------------
      * Feed the actual K information symbols
      * ------------------------------------------------------------- */
     for (i = 0; i < rse->K; i++) {
-	galois_field_val fb = galois_field_add(buf[i], rse->parity[0]);
+	galois_field_val fb = galois_field_add(data[i], parity[0]);
 
 	for (j = 0; j < rs->T - 1; j++)
-	    rse->parity[j] =
-		galois_field_add(rse->parity[j + 1],
+	    parity[j] =
+		galois_field_add(parity[j + 1],
 				 galois_field_mul(&rs->gf, fb,
 						  rs->generator[j + 1]));
-	rse->parity[rs->T - 1] = galois_field_mul(&rs->gf, fb,
-						  rs->generator[rs->T]);
+	parity[rs->T - 1] = galois_field_mul(&rs->gf, fb,
+					     rs->generator[rs->T]);
     }
-
-    for (i = 0; i < rs->T; i++)
-	buf[i + rse->K] = rse->parity[i];
 
     return 0;
 }
@@ -181,7 +183,7 @@ reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
  * ------------------------------------------------------------------------- */
 static unsigned int
 compute_syndromes(struct reed_solomon *rs,
-		  const galois_field_val *recv_sym_p, galois_field_val *S)
+		  const galois_field_val *e, galois_field_val *S)
 {
     unsigned int i, j, count = 0;
 
@@ -192,11 +194,10 @@ compute_syndromes(struct reed_solomon *rs,
 	for (j = 0; j < rs->gf.Np; j++) {
 	    galois_field_val k = (si * j) % rs->gf.Np;
 
-	    sum = galois_field_add(sum,
-				   galois_field_mul(&rs->gf,
-						    recv_sym_p[j],
-						    rs->gf.exp[k]));
+	    k = rs->gf.exp[k];
+	    sum = galois_field_add(sum, galois_field_mul(&rs->gf, e[j], k));
 	}
+	//printf("S[%u] = %u\n", i, sum);
 	S[i] = sum;
 	if (sum)
 	    count++;
