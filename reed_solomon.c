@@ -176,27 +176,33 @@ reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
  *
  *     S_i = Σ_{j=0}^{Np-1} r_j α^{(i+1)*j},   for i = 0..T-1
  *
+ * Returns the number of non-zero syndromes.
  * Zero syndromes → no errors.
  * ------------------------------------------------------------------------- */
-static void
+static unsigned int
 compute_syndromes(struct reed_solomon *rs,
 		  const galois_field_val *recv_sym_p, galois_field_val *S)
 {
-    unsigned int i, j;
+    unsigned int i, j, count = 0;
 
     for (i = 0; i < rs->T; i++) {
 	galois_field_val sum = 0;
 	unsigned int si = i + 1; /* Evaluate at α^(i+1) */
 
 	for (j = 0; j < rs->gf.Np; j++) {
-	    unsigned int k = (si * j) % rs->gf.Np;
+	    galois_field_val k = (si * j) % rs->gf.Np;
 
 	    sum = galois_field_add(sum,
-				   galois_field_mul(&rs->gf, recv_sym_p[j],
+				   galois_field_mul(&rs->gf,
+						    recv_sym_p[j],
 						    rs->gf.exp[k]));
 	}
 	S[i] = sum;
+	if (sum)
+	    count++;
     }
+
+    return count;
 }
 
 /* -------------------------------------------------------------------------
@@ -435,7 +441,6 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
     unsigned int t = rs->T / 2;
     unsigned int i;
     unsigned int count = 0;
-    bool all_zero = true;
 
     if (len > rs->gf.Np)
 	return 1;
@@ -454,17 +459,9 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 	rsd->recv_sym_p[rsd->S + i] = buf[i];
 
     /* Syndromes */
-    compute_syndromes(rs, rsd->recv_sym_p, rsd->synd);
+    count = compute_syndromes(rs, rsd->recv_sym_p, rsd->synd);
 
-    /* Check if all-zero syndromes → no errors */
-    for (i = 0; i < rs->T; i++) {
-	if (rsd->synd[i] != 0) {
-	    all_zero = false;
-	    break;
-	}
-    }
-
-    if (!all_zero) {
+    if (count != 0) {
 	/* BM → locator polynomial */
 	unsigned int L = berlekamp_massey(rsd, rsd->synd, rsd->sigma);
 

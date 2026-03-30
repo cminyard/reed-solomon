@@ -6,7 +6,7 @@
 #include <time.h>
 #include "reed_solomon.h"
 
-#define ERR_COUNT_CHECK 0
+#define ERR_COUNT_CHECK 1
 
 static unsigned int
 test_one(unsigned int num_errs,
