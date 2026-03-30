@@ -111,6 +111,8 @@ main(int argc, char *argv[])
     srand(time(NULL));
 
     reed_solomon_init(&rs, 8, 32);
+    reed_solomon_encoder_init(&rse, &rs);
+    reed_solomon_decoder_init(&rsd, &rs);
 
     for (i = 0; ; i++) {
 	unsigned int errs = test_loop(loops, i, &rse, &rsd);

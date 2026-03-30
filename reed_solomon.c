@@ -10,7 +10,6 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T)
     galois_field_val tmp[GALOIS_FIELD_MAX];
     galois_field_val g0;
     galois_field_val inv_g0;
-    unsigned int max_val, val, b;
     int err = galois_field_init(&rs->gf, m);
 
     if (err)
@@ -23,6 +22,10 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T)
 
     rs->m = m;
     rs->T = T;
+
+#if GF_DYN_ALLOC
+    rs->generator = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+#endif
 
     /* ---------------------------------------------------------------------
      * Generator polynomial construction (degree T)
@@ -59,18 +62,18 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T)
     for (j = 0; j <= rs->T; j++)
 	rs->generator[j] = galois_field_mul(&rs->gf, rs->generator[j], inv_g0);
 
-    /* ---------------------------------------------------------------------
-     * Precompute symbol bit-representation table
-     * --------------------------------------------------------------------- */
-    max_val = 1 << m;
-    for (val = 0; val < max_val; val++) {
-	for (b = 0; b < m; b++)
-	    rs->symbol_bits[val][b] = (val >> b) & 1;
-	for (b = m; b < GALOIS_FIELD_EXP_MAX; b++)
-	    rs->symbol_bits[val][b] = 0;
-    }
-
     return 0;
+}
+
+void
+reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
+			  struct reed_solomon *rs)
+{
+    rse->rs = rs;
+#if GF_DYN_ALLOC
+    rse->u = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+    rse->parity = malloc(sizeof(galois_field_val) * REED_SOLOMON_MAX_T);
+#endif
 }
 
 /**
@@ -144,6 +147,30 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
 }
 
 
+void
+reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
+			  struct reed_solomon *rs)
+{
+    rsd->rs = rs;
+#if GF_DYN_ALLOC
+    unsigned int i;
+    rsd->C = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+    rsd->B = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+    rsd->Temp = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+
+    rsd->A = malloc(sizeof(galois_field_val *) * REED_SOLOMON_MAX_ERR);
+    for (i = 0; i < REED_SOLOMON_MAX_ERR; i++)
+	rsd->A[i] = malloc(sizeof(galois_field_val) * REED_SOLOMON_MAX_ERR);
+
+    rsd->e = malloc(sizeof(galois_field_val) * REED_SOLOMON_MAX_ERR);
+    rsd->recv_sym_p = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+
+    rsd->synd = malloc(sizeof(galois_field_val) * REED_SOLOMON_MAX_T);
+    rsd->sigma = malloc(sizeof(galois_field_val) * (REED_SOLOMON_MAX_ERR + 1));
+    rsd->error_pos = malloc(sizeof(unsigned int) * REED_SOLOMON_MAX_ERR);
+#endif
+}
+
 /* -------------------------------------------------------------------------
  * 1) Syndrome computation (on parent length Np)
  *
@@ -192,8 +219,8 @@ berlekamp_massey(struct reed_solomon_decoder *rsd,
     galois_field_val bbb = 1;
     unsigned int i, n;
 
-    memset(rsd->B, 0, sizeof(rsd->B));
-    memset(rsd->C, 0, sizeof(rsd->C));
+    memset(rsd->B, 0, sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+    memset(rsd->C, 0, sizeof(galois_field_val) * GALOIS_FIELD_MAX);
 
     rsd->C[0] = 1;
     rsd->B[0] = 1;

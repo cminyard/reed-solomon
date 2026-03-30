@@ -14,7 +14,6 @@
 #ifndef REED_SOLOMON_H
 #define REED_SOLOMON_H
 
-#include <stdint.h>
 #include "galois_field.h"
 
 /* Maximum value T may be. */
@@ -28,11 +27,12 @@ struct reed_solomon {
 
     /* FIXME - allocate these based on m. */
 
+#if GF_DYN_ALLOC
+    galois_field_val *generator;
+#else
     /* Generator polynomial g(x) */
     galois_field_val generator[GALOIS_FIELD_MAX];
-
-    /* Bit representation table */
-    int symbol_bits[GALOIS_FIELD_MAX][GALOIS_FIELD_EXP_MAX];
+#endif
 };
 
 /**
@@ -58,11 +58,19 @@ struct reed_solomon_encoder {
     unsigned int S;  /* Shortening amount = gf.Np - N */
     unsigned int K;  /* Number of information symbols */
 
+#if GF_DYN_ALLOC
+    galois_field_val *u;
+    galois_field_val *parity;
+#else
     /* Needs to be 2^M - T elements; */
     galois_field_val u[GALOIS_FIELD_MAX];
     /* Needs to be T elements. */
     galois_field_val parity[REED_SOLOMON_MAX_T];
+#endif
 };
+
+void reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
+			       struct reed_solomon *rs);
 
 /**
  * @brief Systematic Reed–Solomon encoding.
@@ -89,6 +97,21 @@ struct reed_solomon_decoder {
     unsigned int S;  /* Shortening amount = gf.Np - N */
     unsigned int K;  /* Number of information symbols */
 
+#if GF_DYN_ALLOC
+    galois_field_val *C;
+    galois_field_val *B;
+    galois_field_val *Temp;
+
+    galois_field_val **A;
+    galois_field_val *e;
+
+    /* galois_field_val recv_sym_p[Np]; */
+    galois_field_val *recv_sym_p;
+
+    galois_field_val *synd;
+    galois_field_val *sigma;
+    unsigned int *error_pos;
+#else
     galois_field_val C[GALOIS_FIELD_MAX]; /* current polynomial */
     galois_field_val B[GALOIS_FIELD_MAX]; /* previous polynomial */
     galois_field_val Temp[GALOIS_FIELD_MAX];
@@ -102,7 +125,11 @@ struct reed_solomon_decoder {
     galois_field_val synd[REED_SOLOMON_MAX_T];
     galois_field_val sigma[REED_SOLOMON_MAX_ERR + 1];
     unsigned int error_pos[REED_SOLOMON_MAX_ERR];
+#endif
 };
+
+void reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
+			       struct reed_solomon *rs);
 
 /**
  * @brief Decode a shortened systematic Reed–Solomon codeword.

@@ -15,6 +15,14 @@
 
 #include <stdint.h>
 
+/* Define for debugging with valgrind. */
+#define GF_DYN_ALLOC 1
+
+#if GF_DYN_ALLOC
+#include <stdlib.h>
+#include <stdio.h>
+#endif
+
 /* -------------------------------------------------------------------------
  * Configuration
  * ------------------------------------------------------------------------- */
@@ -29,8 +37,13 @@ typedef uint16_t galois_field_val;
  * ------------------------------------------------------------------------- */
 struct galois_field {
     unsigned int Np; /* parent field length */
+#if GF_DYN_ALLOC
+    galois_field_val *exp;
+    galois_field_val *log;
+#else
     galois_field_val exp[2 * GALOIS_FIELD_MAX];/* Exponential table */
     galois_field_val log[GALOIS_FIELD_MAX];    /* Logarithm table */
+#endif
 };
 
 /* -------------------------------------------------------------------------

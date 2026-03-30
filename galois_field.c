@@ -40,6 +40,11 @@ int galois_field_init(struct galois_field *gf, int m)
     /* Field size (2^m - 1) */
     gf->Np = (1 << m) - 1;
 
+#if GF_DYN_ALLOC
+    gf->exp = malloc(sizeof(galois_field_val) * 2 * GALOIS_FIELD_MAX);
+    gf->log = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+#endif
+
     /* Select primitive polynomial */
     prim = primitive_poly[m];
 
