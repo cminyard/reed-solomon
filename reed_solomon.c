@@ -70,9 +70,6 @@ reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
 			  struct reed_solomon *rs)
 {
     rse->rs = rs;
-#if GF_DYN_ALLOC
-    rse->u = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
-#endif
 }
 
 /**
@@ -87,24 +84,12 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
 {
     struct reed_solomon *rs = rse->rs;
     unsigned int i, j;
-    uint8_t *data;
+    unsigned int N = len + rs->T;
+    unsigned int S = rs->gf.Np - N;
 
     if (len > rs->gf.Np - rs->T)
 	return 1;
-    rse->N = len + rs->T;
-    rse->K = len;
-    /* Number of shortened symbols */
-    rse->S = rs->gf.Np - rse->N;
 
-    if (rse->S == 0) {
-	/* No padding, we can just use the buffer. */
-	data = inbuf;
-    } else {
-	/* Padding, we have to copy. */
-	data = rse->u;
-	for (i = 0; i < rse->K; i++)
-	    data[i] = inbuf[i];
-    }
     /* -------------------------------------------------------------
      * Initialize T parity registers to zero
      * ------------------------------------------------------------- */
@@ -118,7 +103,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
      * This produces the same result as encoding an N-symbol RS code
      * and then shortening it to length N.
      * ------------------------------------------------------------- */
-    for (i = 0; i < rse->S; i++) {
+    for (i = 0; i < S; i++) {
 	galois_field_val fb = parity[0];
 
 	for (j = 0; j < rs->T - 1; j++)
@@ -133,8 +118,8 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
     /* -------------------------------------------------------------
      * Feed the actual K information symbols
      * ------------------------------------------------------------- */
-    for (i = 0; i < rse->K; i++) {
-	galois_field_val fb = galois_field_add(data[i], parity[0]);
+    for (i = 0; i < len; i++) {
+	galois_field_val fb = galois_field_add(inbuf[i], parity[0]);
 
 	for (j = 0; j < rs->T - 1; j++)
 	    parity[j] =

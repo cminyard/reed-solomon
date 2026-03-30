@@ -53,17 +53,6 @@ int reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T);
 
 struct reed_solomon_encoder {
     struct reed_solomon *rs;
-
-    unsigned int N;  /* Codeword length (shortened) */
-    unsigned int S;  /* Shortening amount = gf.Np - N */
-    unsigned int K;  /* Number of information symbols */
-
-#if GF_DYN_ALLOC
-    galois_field_val *u;
-#else
-    /* Needs to be 2^M - T elements; */
-    galois_field_val u[GALOIS_FIELD_MAX];
-#endif
 };
 
 void reed_solomon_encoder_init(struct reed_solomon_encoder *rse,

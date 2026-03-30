@@ -23,8 +23,6 @@ test_one(unsigned int num_errs,
 	buf[i] = rand();
 	origbuf[i] = buf[i];
     }
-    for (; i < 255; i++)
-	buf[i] = 0;
 
     /* Add the parity bytes. */
     reed_solomon_encode(rse, buf, 223, buf + 223);
