@@ -17,6 +17,9 @@
 #include <stdint.h>
 #include "galois_field.h"
 
+/* Maximum value T may be. */
+#define REED_SOLOMON_MAX_T 32
+
 struct reed_solomon {
     unsigned int m;  /* GF size parameter m → GF(2^m) */
     unsigned int T;  /* Number of parity symbols (generator degree) */
@@ -37,7 +40,12 @@ struct reed_solomon {
  *
  * @param rs The structure to fill in with data
  * @param m  GF size parameter (1–8), GF size = 2^m
- * @param T  Number of parity bytes
+ * @param T  Number of parity symbols
+ *
+ * The length of the actual data may vary up to (2^m - T) bytes long,
+ * and that is passed into the encode and decode functions.  The
+ * arrays and lengths passed into those function include T, see them
+ * for details.
  *
  * @return 0 on success, non-zero on failure.
  */
@@ -50,15 +58,10 @@ struct reed_solomon_encoder {
     unsigned int S;  /* Shortening amount = gf.Np - N */
     unsigned int K;  /* Number of information symbols */
 
-    /* FIXME - allocate these based on K and T. */
-    /*
-     * FIXME - do these need to be galois_field_val?  If they are uint8_t,
-     * they can be used directly from the user buffer provided.
-     */
-    /* galois_field_val u[K]; */
+    /* Needs to be 2^M - T elements; */
     galois_field_val u[GALOIS_FIELD_MAX];
-    /* galois_field_val parity[T]; */
-    galois_field_val parity[GALOIS_FIELD_MAX];
+    /* Needs to be T elements. */
+    galois_field_val parity[REED_SOLOMON_MAX_T];
 };
 
 /**
@@ -76,6 +79,9 @@ struct reed_solomon_encoder {
 int reed_solomon_encode(struct reed_solomon_encoder *rse,
 			 uint8_t *buf, unsigned int len);
 
+/* We can process up to T/2 errors.  More than that we ignore. */
+#define REED_SOLOMON_MAX_ERR (REED_SOLOMON_MAX_T / 2)
+
 struct reed_solomon_decoder {
     struct reed_solomon *rs;
 
@@ -83,30 +89,19 @@ struct reed_solomon_decoder {
     unsigned int S;  /* Shortening amount = gf.Np - N */
     unsigned int K;  /* Number of information symbols */
 
-    /*
-     * FIXME - allocate these based on parms. Make sure to fix the
-     * memset in reed_solomon_decode().
-     */
-
     galois_field_val C[GALOIS_FIELD_MAX]; /* current polynomial */
     galois_field_val B[GALOIS_FIELD_MAX]; /* previous polynomial */
     galois_field_val Temp[GALOIS_FIELD_MAX];
 
-    /* galois_field_val A[error_count][error_count]; */
-    galois_field_val A[GALOIS_FIELD_MAX][GALOIS_FIELD_MAX];
-    /* galois_field_val B[error_count]; */
-    /* galois_field_val B[GALOIS_FIELD_MAX]; - Reused the "B" above */
-    /* galois_field_val e[error_count]; */
-    galois_field_val e[GALOIS_FIELD_MAX];
+    galois_field_val A[REED_SOLOMON_MAX_ERR][REED_SOLOMON_MAX_ERR];
+    galois_field_val e[REED_SOLOMON_MAX_ERR];
 
     /* galois_field_val recv_sym_p[Np]; */
     galois_field_val recv_sym_p[GALOIS_FIELD_MAX];
-    /* galois_field_val synd[T]; */
-    galois_field_val synd[GALOIS_FIELD_MAX];
-    /* galois_field_val sigma[rs->T / 2 + 1]; */
-    galois_field_val sigma[GALOIS_FIELD_MAX];
-    /* unsigned int error_pos[rs->T / 2]; */
-    unsigned int error_pos[GALOIS_FIELD_MAX];
+
+    galois_field_val synd[REED_SOLOMON_MAX_T];
+    galois_field_val sigma[REED_SOLOMON_MAX_ERR + 1];
+    unsigned int error_pos[REED_SOLOMON_MAX_ERR];
 };
 
 /**

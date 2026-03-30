@@ -16,6 +16,8 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T)
     if (err)
 	return err;
 
+    if (T > REED_SOLOMON_MAX_T)
+	return 1;
     if (T >= rs->gf.Np)
 	return 1;
 
@@ -250,18 +252,23 @@ berlekamp_massey(struct reed_solomon_decoder *rsd,
  * Find i such that σ(α^{-i}) = 0, for i = 0..Np-1.
  * Each such i corresponds to an error at position i.
  * ------------------------------------------------------------------------- */
-static int
+static unsigned int
 chien_search(struct reed_solomon *rs,
 	     const galois_field_val *sigma, unsigned int L,
 	     unsigned int *error_pos)
 {
-    int count = 0;
+    unsigned int count = 0;
     unsigned int i, j;
 
     for (i = 0; i < rs->gf.Np; i++) {
-	galois_field_val x_inv = (i == 0) ? 1 : rs->gf.exp[rs->gf.Np - i];
+	galois_field_val x_inv;
 	galois_field_val sum = 0;
 	galois_field_val power = 1;
+
+	if (i == 0)
+	    x_inv = 1;
+	else
+	    x_inv = rs->gf.exp[rs->gf.Np - i];
 
 	for (j = 0; j <= L; j++) {
 	    if (sigma[j] != 0)
@@ -294,7 +301,7 @@ correct_errors(struct reed_solomon_decoder *rsd,
     struct reed_solomon *rs = rsd->rs;
     unsigned int i, r, c;
 
-    if (error_count <= 0)
+    if (error_count == 0)
 	return;
 
     /* Construct linear system */
