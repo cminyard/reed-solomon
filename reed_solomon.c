@@ -88,7 +88,7 @@ void
 reed_solomon_encode(struct reed_solomon_encoder *rse, uint8_t *buf)
 {
     struct reed_solomon *rs = rse->rs;
-    unsigned int i, j, s;
+    unsigned int i, j;
 
     /* -------------------------------------------------------------
      * Initialize T parity registers to zero
@@ -105,7 +105,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse, uint8_t *buf)
      * This produces the same result as encoding an N-symbol RS code
      * and then shortening it to length N.
      * ------------------------------------------------------------- */
-    for (s = 0; s < rs->S; s++) {
+    for (i = 0; i < rs->S; i++) {
 	galois_field_val fb = rse->parity[0];
 
 	for (j = 0; j < rs->T - 1; j++)
@@ -251,13 +251,14 @@ chien_search(struct reed_solomon *rs,
 	     unsigned int *error_pos)
 {
     int count = 0;
+    unsigned int i, j;
 
-    for (int i = 0; i < rs->gf.Np; i++) {
+    for (i = 0; i < rs->gf.Np; i++) {
 	galois_field_val x_inv = (i == 0) ? 1 : rs->gf.exp[rs->gf.Np - i];
 	galois_field_val sum = 0;
 	galois_field_val power = 1;
 
-	for (int j = 0; j <= L; j++) {
+	for (j = 0; j <= L; j++) {
 	    if (sigma[j] != 0)
 		sum ^= galois_field_mul(&rs->gf, sigma[j], power);
 	    power = galois_field_mul(&rs->gf, power, x_inv);
@@ -286,7 +287,7 @@ correct_errors(struct reed_solomon_decoder *rsd,
 	       const unsigned int *error_pos, unsigned int error_count)
 {
     struct reed_solomon *rs = rsd->rs;
-    unsigned int i, r, c, k;
+    unsigned int i, r, c;
 
     if (error_count <= 0)
 	return;
@@ -363,10 +364,10 @@ correct_errors(struct reed_solomon_decoder *rsd,
 	rsd->e[i] = rsd->B[i];
 
     /* Apply error corrections */
-    for (k = 0; k < error_count; k++) {
-	int pos = error_pos[k];
+    for (i = 0; i < error_count; i++) {
+	int pos = error_pos[i];
 
-	recv_sym_p[pos] ^= rsd->e[k];
+	recv_sym_p[pos] ^= rsd->e[i];
     }
 }
 

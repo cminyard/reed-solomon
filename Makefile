@@ -1,6 +1,14 @@
 
 all: example
 
+# X86 support
+# popcnt was added in the Nehalem CPU
+ARCH = -march=native
+# If you set DO_SIMD, adding -msse2 will be required.
+#ARCH += -msse2
+
+CFLAGS = -g -Wall -O3 -DCONVCODE_TESTS -DDO_SIMD=$(DO_SIMD) $(ARCH)
+
 example: example.o reed_solomon.o galois_field.o
 	gcc $(CFLAGS) -o $@ $^
 
