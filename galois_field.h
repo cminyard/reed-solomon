@@ -40,31 +40,84 @@ struct galois_field {
 /**
  * @brief GF addition (same as XOR).
  */
-galois_field_val galois_field_add(galois_field_val a, galois_field_val b);
+static inline galois_field_val
+galois_field_add(galois_field_val a, galois_field_val b)
+{
+    return a ^ b;
+}
 
 /**
  * @brief GF multiplication using exp/log tables.
  */
-galois_field_val galois_field_mul(struct galois_field *gf,
-				  galois_field_val a, galois_field_val b);
+static inline galois_field_val
+galois_field_mul(struct galois_field *gf,
+		 galois_field_val a, galois_field_val b)
+{
+    int idx;
+
+    if (a == 0 || b == 0)
+	return 0;
+
+    idx = gf->log[a] + gf->log[b];
+    if (idx >= gf->Np)
+	idx -= gf->Np;
+
+    return gf->exp[idx];
+}
 
 /**
  * @brief GF division using exp/log tables.
  */
-galois_field_val galois_field_div(struct galois_field *gf,
-				  galois_field_val a, galois_field_val b);
+static inline galois_field_val
+galois_field_div(struct galois_field *gf,
+		 galois_field_val a, galois_field_val b)
+{
+    int idx;
+
+    if (b == 0) /* Division by zero. */
+	return 0;
+
+    if (a == 0)
+	return 0;
+
+    idx = gf->log[a] - gf->log[b];
+    if (idx < 0)
+	idx += gf->Np;
+
+    return gf->exp[idx];
+}
 
 /**
  * @brief Raise base to an integer power (base^power) in GF.
  */
+static inline
 galois_field_val galois_field_pow(struct galois_field *gf,
-				  galois_field_val base, int power);
+				  galois_field_val base, int power)
+{
+    int logv;
+    int x;
+
+    if (base == 0)
+	return 0;
+
+    logv = gf->log[base];
+    x = (logv * power) % gf->Np;
+    if (x < 0)
+	x += gf->Np;
+    return gf->exp[x];
+}
 
 /**
  * @brief Multiplicative inverse in GF.
  */
-galois_field_val galois_field_inv(struct galois_field *gf,
-				  galois_field_val a);
+static inline galois_field_val
+galois_field_inv(struct galois_field *gf, galois_field_val a)
+{
+    if (a == 0)
+	return 0;
+
+    return gf->exp[gf->Np - gf->log[a]];
+}
 
 /* -------------------------------------------------------------------------
  * Initialization

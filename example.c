@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <time.h>
 #include "reed_solomon.h"
 
@@ -89,17 +90,36 @@ main(int argc, char *argv[])
     struct reed_solomon rs;
     struct reed_solomon_encoder rse = { .rs = &rs };
     struct reed_solomon_decoder rsd = { .rs = &rs };
+    unsigned int loops = 100;
+    bool do_cpu_usage = false;
     unsigned int i;
-    int err = 0;
+    int arg, err = 0;
 
+    for (arg = 1; arg < argc; arg++) {
+	if (argv[arg][0] != '-')
+	    break;
+	if (strcmp(argv[arg], "-c") == 0) {
+	    do_cpu_usage = true;
+	} else if (strcmp(argv[arg], "-l") == 0) {
+	    arg++;
+	    if (arg >= argc) {
+		fprintf(stderr, "No data supplied for -l\n");
+		return 1;
+	    }
+	    loops = strtoul(argv[arg], NULL, 0);
+	} else {
+	    fprintf(stderr, "unknown option: %s\n", argv[arg]);
+	    return 1;
+	}
+    }
     srand(time(NULL));
 
     reed_solomon_init(&rs, 8, 255, 223);
 
     for (i = 0; ; i++) {
-	unsigned int errs = test_loop(100, i, &rse, &rsd);
+	unsigned int errs = test_loop(loops, i, &rse, &rsd);
 
-	if (errs == 100)
+	if (errs == loops || do_cpu_usage)
 	    break;
     }
 
