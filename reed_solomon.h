@@ -33,20 +33,21 @@ struct reed_solomon {
 /**
  * @brief Initialize GF(2^m) and construct RS generator polynomial.
  *
- * @param rs The structure to fill in with data
- * @param m  GF size parameter (1–8), GF size = 2^m
- * @param T  Number of parity symbols
+ * @param rs   The structure to fill in with data
+ * @param m    GF size parameter (1–8), GF size = 2^m
+ * @param gfpoly The GF polynomial
+ * @param T    Number of parity symbols
+ * @param fcr  The first consecutive root of the RS polynomial
+ * @param prim The primitive element of the GF.
  *
  * The length of the actual data may vary up to (2^m - T) bytes long,
- * and that is passed into the encode and decode functions.  The
- * arrays and lengths passed into those function include T, see them
- * for details.
+ * and that is passed into the encode and decode functions.
  *
  * @return 0 on success, non-zero on failure.
  */
 int reed_solomon_init(struct reed_solomon *rs, unsigned int m,
 		      unsigned int gfpoly, unsigned int T,
-		      unsigned int fcs, unsigned int prim);
+		      unsigned int fcr, unsigned int prim);
 
 struct reed_solomon_encoder {
     struct reed_solomon *rs;
@@ -59,15 +60,22 @@ struct reed_solomon_encoder {
 #endif
 };
 
+/**
+ * @brief Initialize a Reed–Solomon encoder structure.
+ *
+ * @param rse The structure to initialize.
+ * @param rs  The main Reed Solomon information, this pointer is kept.
+ */
 void rs_encoder_init(struct reed_solomon_encoder *rse,
 		     struct reed_solomon *rs);
 
 /**
- * @brief Systematic Reed–Solomon encoding.
+ * @brief Reed–Solomon encoding.
  *
  * @param rse A encoder structure with rs set.
- * @param buf Buffer of len + T bytes, the last T bytes are replaced with parity.
- * @param len Length of buf, including the T bytes.
+ * @param buf Buffer to generate parity for
+ * @param len Length of buf
+ * @param parity Output parity bytes, should be T bytes long
  *
  * The length of the buffer may be up to 2^M symbols long, meaning
  * that the actual data may be (2^M - T) symbols long.
@@ -100,36 +108,58 @@ struct reed_solomon_decoder {
 
     gf_sym *O;
 #else
-    /* gf_sym recv_sym_p[Np]; */
+    /*
+     * Incoming data, it is copied here if the input buffer is
+     * partial, otherwise the user's data is used.
+     */
     gf_sym data[GF_MAX];
 
+    /* Lambda array. */
     gf_sym C[RS_MAX_T + 1]; /* current polynomial */
-    gf_sym B[2 * RS_MAX_T + 1]; /* previous polynomial */
+
+    /* Two temporary arrays used by decoding */
+    gf_sym B[RS_MAX_T + 1]; /* previous polynomial */
     gf_sym Temp[RS_MAX_T + 1];
 
+    /* Syndrome array. */
     gf_sym synd[RS_MAX_T];
+
+    /* Information about error locations. */
     unsigned int error_idx[RS_MAX_ERR];
     unsigned int error_pos[RS_MAX_ERR];
 
+    /* Omega array. */
     gf_sym O[RS_MAX_ERR];
 #endif
 };
 
+/**
+ * @brief Initialize a Reed–Solomon decoder structure.
+ *
+ * @param rsd The structure to initialize.
+ * @param rs  The main Reed Solomon information, this pointer is kept.
+ */
 void rs_decoder_init(struct reed_solomon_decoder *rsd,
 		     struct reed_solomon *rs);
 
 /**
- * @brief Decode a shortened systematic Reed–Solomon codeword.
+ * @brief Decode a Reed–Solomon encoded buffer.
  *
+ * @param rsd A decoder structure with rs set.
  * @param buf Buffer, including the parity.
- * @param lan Length of the buffer.
+ * @param len Length of the buffer.
+ * @param err_count The number of errors that were corrected.
  *
- * The first K bytes of buf are replaced with the corrected data.
+ * The first K bytes of buf are replaced with the corrected data if
+ * there are errors.
  *
  * The length of the buffer may be up to 2^M symbols long, meaning
  * that the actual data may be (2^M - T), or K symbols long.
  *
- * @return 0 on success, non-zero on error.
+ * If errors could not be corrected, this returns failure and err_count
+ * will not be set.
+ *
+ * @return 0 on success, non-zero on failure.
  */
 int rs_decode(struct reed_solomon_decoder *rsd,
 	      uint8_t *buf, unsigned int len,
