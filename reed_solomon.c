@@ -36,13 +36,13 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
 {
     struct galois_field *gf = &rs->gf;
     unsigned int i, j;
-    gf_val tmp[GF_MAX];
+    gf_sym tmp[GF_MAX];
     unsigned int root;
 
     rse->rs = rs;
 
 #if GF_DYN_ALLOC
-    rse->generator = malloc(sizeof(gf_val) * GF_MAX);
+    rse->generator = malloc(sizeof(gf_sym) * GF_MAX);
 #endif
 
     /* ---------------------------------------------------------------------
@@ -50,7 +50,7 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
      * g(x) = (x - α^0)(x - α^1)...(x - α^(T-1))
      * --------------------------------------------------------------------- */
     rse->generator[0] = 1;
-    memset(rse->generator + 1, 0, rs->T * sizeof(gf_val));
+    memset(rse->generator + 1, 0, rs->T * sizeof(gf_sym));
 
     root = rs->fcr * rs->prim;
     for (i = 0; i < rs->T; i++, root += rs->prim) {
@@ -90,13 +90,13 @@ rs_encode(struct reed_solomon_encoder *rse,
     if (len > gf->Np - rs->T)
 	return 1;
 
-    memset(parity, 0, rs->T * sizeof(gf_val));
+    memset(parity, 0, rs->T * sizeof(gf_sym));
 
     /* No need to process the pad, the result will still be 0. */
 
     /* Feed the actual data. */
     for (i = 0; i < len; i++) {
-	gf_val fb = gf_add(inbuf[i], parity[0]);
+	gf_sym fb = gf_add(inbuf[i], parity[0]);
 
 	if (fb != 0) {
 	    for (j = 1; j < rs->T; j++)
@@ -104,7 +104,7 @@ rs_encode(struct reed_solomon_encoder *rse,
 		parity[j] = gf_add(parity[j],
 				   gf_mul(gf, fb, rse->generator[rs->T - j]));
 	}
-	memcpy(parity, parity + 1, rs->T * sizeof(gf_val));
+	memcpy(parity, parity + 1, rs->T * sizeof(gf_sym));
 
 	if (fb != 0)
 	    parity[rs->T - 1] = gf_mul(gf, fb, rse->generator[0]);
@@ -122,17 +122,17 @@ rs_decoder_init(struct reed_solomon_decoder *rsd,
 {
     rsd->rs = rs;
 #if GF_DYN_ALLOC
-    rsd->data = malloc(sizeof(gf_val) * GF_MAX);
+    rsd->data = malloc(sizeof(gf_sym) * GF_MAX);
 
-    rsd->C = malloc(sizeof(gf_val) * (RS_MAX_T + 1));
-    rsd->B = malloc(sizeof(gf_val) * (2 * RS_MAX_T + 1));
-    rsd->Temp = malloc(sizeof(gf_val) * (RS_MAX_T + 1));
+    rsd->C = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
+    rsd->B = malloc(sizeof(gf_sym) * (2 * RS_MAX_T + 1));
+    rsd->Temp = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
 
-    rsd->synd = malloc(sizeof(gf_val) * RS_MAX_T);
+    rsd->synd = malloc(sizeof(gf_sym) * RS_MAX_T);
     rsd->error_pos = malloc(sizeof(unsigned int) * RS_MAX_ERR);
     rsd->error_idx = malloc(sizeof(unsigned int) * RS_MAX_ERR);
 
-    rsd->O = malloc(sizeof(gf_val) * RS_MAX_ERR);
+    rsd->O = malloc(sizeof(gf_sym) * RS_MAX_ERR);
 #endif
 }
 
@@ -146,7 +146,7 @@ rs_decoder_init(struct reed_solomon_decoder *rsd,
  * ------------------------------------------------------------------------- */
 static unsigned int
 compute_syndromes(struct reed_solomon *rs, unsigned int N,
-		  const gf_val *e, gf_val *S)
+		  const gf_sym *e, gf_sym *S)
 {
     struct galois_field *gf = &rs->gf;
     unsigned int i, j, count = 0;
@@ -181,9 +181,9 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
  * ------------------------------------------------------------------------- */
 static unsigned int
 berlekamp_massey(struct reed_solomon *rs,
-		 gf_val *S,
-		 gf_val *B, gf_val *C,
-		 gf_val *Temp)
+		 gf_sym *S,
+		 gf_sym *B, gf_sym *C,
+		 gf_sym *Temp)
 {
     struct galois_field *gf = &rs->gf;
     unsigned int L = 0;
@@ -195,14 +195,14 @@ berlekamp_massey(struct reed_solomon *rs,
      */
     B += RS_MAX_T;
 
-    memset(B + 1, 0, sizeof(gf_val) * RS_MAX_T);
-    memset(C + 1, 0, sizeof(gf_val) * RS_MAX_T);
+    memset(B + 1, 0, sizeof(gf_sym) * RS_MAX_T);
+    memset(C + 1, 0, sizeof(gf_sym) * RS_MAX_T);
 
     C[0] = 1;
     B[0] = 1;
 
     for (n = 1; n <= rs->T; n++) {
-	gf_val d = 0;
+	gf_sym d = 0;
 
 	for (i = 0; i < n; i++)
 	    /* d += C[i] * S[n - i - 1] */
@@ -226,7 +226,7 @@ berlekamp_massey(struct reed_solomon *rs,
 		B[0] = 0;
 	    }
 
-	    memcpy(C, Temp, rs->T * sizeof(gf_val));
+	    memcpy(C, Temp, rs->T * sizeof(gf_sym));
 	}
     }
 
@@ -242,7 +242,7 @@ berlekamp_massey(struct reed_solomon *rs,
  * ------------------------------------------------------------------------- */
 static unsigned int
 chien_search(struct reed_solomon *rs, unsigned int L,
-	     gf_val *C, gf_val *Temp,
+	     gf_sym *C, gf_sym *Temp,
 	     unsigned int *err_idx, unsigned int *err_pos,
 	     unsigned int *rcount)
 {
@@ -289,8 +289,8 @@ chien_search(struct reed_solomon *rs, unsigned int L,
  * ------------------------------------------------------------------------- */
 static void
 correct_errors(struct reed_solomon *rs,
-	       gf_val *e, const gf_val *S,
-	       const gf_val *C, gf_val *O,
+	       gf_sym *e, const gf_sym *S,
+	       const gf_sym *C, gf_sym *O,
 	       const unsigned int *err_idx, const unsigned int *err_pos,
 	       unsigned int err_cnt)
 {
@@ -369,8 +369,8 @@ rs_decode(struct reed_solomon_decoder *rsd,
 	data = rsd->data;
 
 	/* Fill the beginning with zeros and copy the rest in. */
-	memset(data, 0, rsd->S * sizeof(gf_val));
-	memcpy(data + rsd->S, buf, rsd->N * sizeof(gf_val));
+	memset(data, 0, rsd->S * sizeof(gf_sym));
+	memcpy(data + rsd->S, buf, rsd->N * sizeof(gf_sym));
     }
 
     /* Syndromes */
@@ -399,7 +399,7 @@ rs_decode(struct reed_solomon_decoder *rsd,
 
     /* Output K information symbols */
     if (rsd->S != 0)
-	memcpy(buf, data + rsd->S, rsd->K * sizeof(gf_val));
+	memcpy(buf, data + rsd->S, rsd->K * sizeof(gf_sym));
 
     return 0;
 }

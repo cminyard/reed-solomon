@@ -52,10 +52,10 @@ struct reed_solomon_encoder {
     struct reed_solomon *rs;
 
 #if GF_DYN_ALLOC
-    gf_val *generator;
+    gf_sym *generator;
 #else
     /* Generator polynomial g(x) */
-    gf_val generator[GF_MAX];
+    gf_sym generator[GF_MAX];
 #endif
 };
 
@@ -88,30 +88,30 @@ struct reed_solomon_decoder {
     unsigned int K;  /* Number of information symbols */
 
 #if GF_DYN_ALLOC
-    gf_val *data;
+    gf_sym *data;
 
-    gf_val *C;
-    gf_val *B;
-    gf_val *Temp;
+    gf_sym *C;
+    gf_sym *B;
+    gf_sym *Temp;
 
-    gf_val *synd;
+    gf_sym *synd;
     unsigned int *error_idx;
     unsigned int *error_pos;
 
-    gf_val *O;
+    gf_sym *O;
 #else
-    /* gf_val recv_sym_p[Np]; */
-    gf_val data[GF_MAX];
+    /* gf_sym recv_sym_p[Np]; */
+    gf_sym data[GF_MAX];
 
-    gf_val C[RS_MAX_T + 1]; /* current polynomial */
-    gf_val B[2 * RS_MAX_T + 1]; /* previous polynomial */
-    gf_val Temp[RS_MAX_T + 1];
+    gf_sym C[RS_MAX_T + 1]; /* current polynomial */
+    gf_sym B[2 * RS_MAX_T + 1]; /* previous polynomial */
+    gf_sym Temp[RS_MAX_T + 1];
 
-    gf_val synd[RS_MAX_T];
+    gf_sym synd[RS_MAX_T];
     unsigned int error_idx[RS_MAX_ERR];
     unsigned int error_pos[RS_MAX_ERR];
 
-    gf_val O[RS_MAX_ERR];
+    gf_sym O[RS_MAX_ERR];
 #endif
 };
 

@@ -31,7 +31,7 @@
 #define GF_EXP_MAX 8
 #define GF_MAX (1 << GF_EXP_MAX)
 
-typedef uint8_t gf_val;
+typedef uint8_t gf_sym;
 
 /* -------------------------------------------------------------------------
  * GF tables and polynomial data
@@ -39,13 +39,13 @@ typedef uint8_t gf_val;
 struct galois_field {
     unsigned int Np; /* parent field length */
 #if GF_DYN_ALLOC
-    gf_val *exp;
-    gf_val *log;
+    gf_sym *exp;
+    gf_sym *log;
 #else
     /* This is one bigger than necessary, see galois_field.c. */
-    gf_val exp[GF_MAX];    /* Exponential table */
+    gf_sym exp[GF_MAX];    /* Exponential table */
 
-    gf_val log[GF_MAX];    /* Logarithm table */
+    gf_sym log[GF_MAX];    /* Logarithm table */
 #endif
 };
 
@@ -56,8 +56,8 @@ struct galois_field {
 /**
  * @brief alpha ^ a, a must be a valid gf number.
  */
-static inline gf_val
-gf_exp(struct galois_field *gf, gf_val a)
+static inline gf_sym
+gf_exp(struct galois_field *gf, gf_sym a)
 {
     return gf->exp[a];
 }
@@ -65,7 +65,7 @@ gf_exp(struct galois_field *gf, gf_val a)
 /**
  * @brief alpha ^ a, a may be an arbitrary number.
  */
-static inline gf_val
+static inline gf_sym
 gf_exp_o(struct galois_field *gf, unsigned int a)
 {
     return gf->exp[a % gf->Np];
@@ -74,8 +74,8 @@ gf_exp_o(struct galois_field *gf, unsigned int a)
 /**
  * @brief GF addition (same as XOR).
  */
-static inline gf_val
-gf_add(gf_val a, gf_val b)
+static inline gf_sym
+gf_add(gf_sym a, gf_sym b)
 {
     return a ^ b;
 }
@@ -83,8 +83,8 @@ gf_add(gf_val a, gf_val b)
 /**
  * @brief GF multiplication using exp/log tables.
  */
-static inline gf_val
-gf_mul(struct galois_field *gf, gf_val a, gf_val b)
+static inline gf_sym
+gf_mul(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
 
@@ -101,8 +101,8 @@ gf_mul(struct galois_field *gf, gf_val a, gf_val b)
 /**
  * @brief GF division using exp/log tables.
  */
-static inline gf_val
-gf_div(struct galois_field *gf, gf_val a, gf_val b)
+static inline gf_sym
+gf_div(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
 
@@ -123,7 +123,7 @@ gf_div(struct galois_field *gf, gf_val a, gf_val b)
  * @brief Raise base to an integer power (base^power) in GF.
  */
 static inline
-gf_val gf_pow(struct galois_field *gf, gf_val base, int power)
+gf_sym gf_pow(struct galois_field *gf, gf_sym base, int power)
 {
     int logv;
     int x;
@@ -142,7 +142,7 @@ gf_val gf_pow(struct galois_field *gf, gf_val base, int power)
  * @brief like gf_pow(), but base is already in log format.
  */
 static inline
-gf_val gf_pow_nl(struct galois_field *gf, gf_val base, int power)
+gf_sym gf_pow_nl(struct galois_field *gf, gf_sym base, int power)
 {
     int x;
 
@@ -158,8 +158,8 @@ gf_val gf_pow_nl(struct galois_field *gf, gf_val base, int power)
 /**
  * @brief Multiplicative inverse in GF.
  */
-static inline gf_val
-gf_inv(struct galois_field *gf, gf_val a)
+static inline gf_sym
+gf_inv(struct galois_field *gf, gf_sym a)
 {
     if (a == 0)
 	return 0;
