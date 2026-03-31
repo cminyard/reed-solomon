@@ -1,5 +1,5 @@
 
-all: example
+all: tester
 
 # X86 support
 # popcnt was added in the Nehalem CPU
@@ -9,14 +9,17 @@ ARCH = -march=native
 
 CFLAGS = -g -Wall -O3 -DCONVCODE_TESTS -DDO_SIMD=$(DO_SIMD) $(ARCH)
 
-example: example.o reed_solomon.o galois_field.o
+tester: tester.o reed_solomon.o galois_field.o
 	gcc $(CFLAGS) -o $@ $^ -lfec
 
-example.o: example.c reed_solomon.h galois_field.h
+tester.o: tester.c reed_solomon.h galois_field.h
 
 reed_solomon.o: reed_solomon.c reed_solomon.h galois_field.h
 
 galois_field.o: galois_field.c galois_field.h
 
+check:	tester
+	./tester
+
 clean:
-	rm -f *.o example
+	rm -f *.o tester

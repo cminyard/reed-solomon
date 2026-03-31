@@ -5,9 +5,12 @@ This is a production-quality RS coder implementation as a couple of C
 files.  It's taken from
 https://github.com/fujiyama-kota-comm/fec-rs-codec which I found easy
 to understand and well written, and perhaps good for playing with, but
-not good for a production environment.
+not good for a production environment.  And, it turns out, it was
+wrong and I had to rewrite all the algorithms pretty much from
+scratch.  Not much is left of the original except the overall
+structure.
 
-See reed_solomon.h and example.c for how to use.
+See reed_solomon.h and tester.c for how to use.
 
 The Galois field implementation is in galois\_field.c and the API is in
 galois\_field.h
