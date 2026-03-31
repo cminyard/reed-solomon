@@ -121,6 +121,23 @@ gf_val gf_pow(struct galois_field *gf, gf_val base, int power)
 }
 
 /**
+ * @brief like gf_pow(), but base is already in log format.
+ */
+static inline
+gf_val gf_pow_nl(struct galois_field *gf, gf_val base, int power)
+{
+    int x;
+
+    if (base == gf->Np)
+	return 0;
+
+    x = (base * power) % gf->Np;
+    if (x < 0)
+	x += gf->Np;
+    return gf->exp[x];
+}
+
+/**
  * @brief Multiplicative inverse in GF.
  */
 static inline gf_val

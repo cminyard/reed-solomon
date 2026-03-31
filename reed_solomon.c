@@ -171,7 +171,7 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
 	for (j = 0; j < rs->T; j++)
 	    S[j] = gf_add(e[i],
 			  gf_mul(gf, S[j],
-				 gf_pow(gf, gf->exp[rs->fcr + j], rs->prim)));
+				 gf_pow_nl(gf, rs->fcr + j, rs->prim)));
     }
 
     for (i = 0; i < rs->T; i++) {
@@ -314,17 +314,13 @@ correct_errors(struct reed_solomon *rs,
 	}
     }
 
-    for (i = err_cnt - 1; ; i--) {
+    for (i = 0; i < err_cnt; i++) {
 	unsigned int tmp = 0, tmp2, d;
 
-	for (j = o; ; j--) {
-	    if (O[j] != 0)
-		tmp = gf_add(tmp, gf_mul(gf, O[j],
-					 gf_pow(gf, gf->exp[j], err_idx[i])));
-	    if (j == 0)
-		break;
-	}
-	tmp2 = gf_pow(gf, gf->exp[err_idx[i]], rs->fcr - 1);
+	for (j = 0; j <= o; j++)
+	    tmp = gf_add(tmp, gf_mul(gf, O[j],
+				     gf_pow_nl(gf, j, err_idx[i])));
+	tmp2 = gf_pow_nl(gf, err_idx[i], rs->fcr - 1);
 
 	d = 0;
 	if (err_cnt < rs->T - 1)
@@ -332,18 +328,14 @@ correct_errors(struct reed_solomon *rs,
 	else
 	    j = rs->T - 1;
 	for (j = j & ~1; ; j -= 2) {
-	    if (C[j + 1] != 0)
-		d = gf_add(d, gf_mul(gf, C[j + 1],
-				     gf_pow(gf, gf->exp[j], err_idx[i])));
+	    d = gf_add(d, gf_mul(gf, C[j + 1],
+				 gf_pow_nl(gf, j, err_idx[i])));
 	    if (j < 2)
 		break;
 	}
 
-	if (tmp != 0)
-	    e[err_pos[i]] ^= gf_div(gf, gf_mul(gf, tmp, tmp2), d);
-
-	if (i == 0)
-	    break;
+	e[err_pos[i]] = gf_add(e[err_pos[i]],
+			       gf_div(gf, gf_mul(gf, tmp, tmp2), d));
     }
 }
 
