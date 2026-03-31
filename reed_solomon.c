@@ -63,17 +63,14 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
 
 	/* Perform polynomial multiplication by (x - α^i) */
 	for (j = i; j > 0; j--) {
-	    if (rse->generator[j] != 0) {
-		unsigned int term;
-
-		term = (gf->log[tmp[j]] + root) % gf->Np;
-		term = gf->exp[term];
-		rse->generator[j] = gf_add(tmp[j - 1], term);
-	    } else {
+	    if (rse->generator[j] != 0)
+		rse->generator[j] = gf_add(tmp[j - 1],
+					   gf_mul(gf, tmp[j],
+						  gf_exp_o(gf, root)));
+	    else
 		rse->generator[j] = rse->generator[j - 1];
-	    }
 	}
-	rse->generator[0] = gf->exp[(gf->log[tmp[0]] + root) % gf->Np];
+	rse->generator[0] = gf_mul(gf, tmp[0], gf_exp_o(gf, root));
     }
 }
 
@@ -109,12 +106,9 @@ rs_encode(struct reed_solomon_encoder *rse,
 	gf_val fb = gf_add(inbuf[i], parity[0]);
 
 	if (fb != 0) {
-	    for (j = 1; j < rs->T; j++) {
-		gf_val tmp;
-
-		tmp = gf_mul(gf, fb, rse->generator[rs->T - j]);
-		parity[j] = gf_add(parity[j], tmp);
-	    }
+	    for (j = 1; j < rs->T; j++)
+		parity[j] = gf_add(parity[j],
+				   gf_mul(gf, fb, rse->generator[rs->T - j]));
 	}
 	for (j = 1; j < rs->T; j++)
 	    parity[j - 1] = parity[j];
@@ -307,11 +301,8 @@ correct_errors(struct reed_solomon *rs,
     o = err_cnt - 1;
     for (i = 0; i <= o; i++) {
 	O[i] = 0;
-	for (j = i; ; j--) {
+	for (j = 0; j <= i; j++)
 	    O[i] = gf_add(O[i], gf_mul(gf, S[i - j], C[j]));
-	    if (j == 0)
-		break;
-	}
     }
 
     for (i = 0; i < err_cnt; i++) {

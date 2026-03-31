@@ -54,6 +54,24 @@ struct galois_field {
  * ------------------------------------------------------------------------- */
 
 /**
+ * @brief alpha ^ a, a must be a valid gf number.
+ */
+static inline gf_val
+gf_exp(struct galois_field *gf, gf_val a)
+{
+    return gf->exp[a];
+}
+
+/**
+ * @brief alpha ^ a, a may be an arbitrary number.
+ */
+static inline gf_val
+gf_exp_o(struct galois_field *gf, unsigned int a)
+{
+    return gf->exp[a % gf->Np];
+}
+
+/**
  * @brief GF addition (same as XOR).
  */
 static inline gf_val
