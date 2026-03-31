@@ -8,9 +8,6 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m,
 		  unsigned int gfpoly, unsigned int T,
 		  unsigned int fcr, unsigned int prim)
 {
-    unsigned int i, j;
-    gf_val tmp[GF_MAX];
-    unsigned int root;
     int err = galois_field_init(&rs->gf, m, gfpoly);
 
     if (err)
@@ -30,48 +27,6 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m,
 	;
     rs->iprim /= prim;
 
-#if GF_DYN_ALLOC
-    rs->generator = malloc(sizeof(gf_val) * GF_MAX);
-#endif
-
-    /* ---------------------------------------------------------------------
-     * Generator polynomial construction (degree T)
-     * g(x) = (x - α^0)(x - α^1)...(x - α^(T-1))
-     * --------------------------------------------------------------------- */
-    rs->generator[0] = 1;
-    for (i = 1; i <= rs->T; i++)
-	rs->generator[i] = 0;
-
-    root = fcr * prim;
-    for (i = 0; i < rs->T; i++, root += prim) {
-	/* Copy existing coefficients */
-	for (j = 0; j <= i; j++)
-	    tmp[j] = rs->generator[j];
-
-	rs->generator[i + 1] = 1;
-
-	/* Perform polynomial multiplication by (x - α^i) */
-	for (j = i; j > 0; j--) {
-	    if (rs->generator[j] != 0) {
-		unsigned int term;
-
-		term = (rs->gf.log[tmp[j]] + root) % rs->gf.Np;
-		term = rs->gf.exp[term];
-		rs->generator[j] = gf_add(tmp[j - 1], term);
-	    } else {
-		rs->generator[j] = rs->generator[j - 1];
-	    }
-	}
-	rs->generator[0] = rs->gf.exp[(rs->gf.log[tmp[0]] + root) % rs->gf.Np];
-    }
-
-    /*
-     * Pre-compute the log so it doesn't have to be done every time
-     * when encoding.
-     */
-    for (i = 0; i <= rs->T; i++)
-	rs->generator[i] = rs->gf.log[rs->generator[i]];
-
     return 0;
 }
 
@@ -79,7 +34,53 @@ void
 reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
 			  struct reed_solomon *rs)
 {
+    unsigned int i, j;
+    gf_val tmp[GF_MAX];
+    unsigned int root;
+
     rse->rs = rs;
+
+#if GF_DYN_ALLOC
+    rse->generator = malloc(sizeof(gf_val) * GF_MAX);
+#endif
+
+    /* ---------------------------------------------------------------------
+     * Generator polynomial construction (degree T)
+     * g(x) = (x - α^0)(x - α^1)...(x - α^(T-1))
+     * --------------------------------------------------------------------- */
+    rse->generator[0] = 1;
+    for (i = 1; i <= rs->T; i++)
+	rse->generator[i] = 0;
+
+    root = rs->fcr * rs->prim;
+    for (i = 0; i < rs->T; i++, root += rs->prim) {
+	/* Copy existing coefficients */
+	for (j = 0; j <= i; j++)
+	    tmp[j] = rse->generator[j];
+
+	rse->generator[i + 1] = 1;
+
+	/* Perform polynomial multiplication by (x - α^i) */
+	for (j = i; j > 0; j--) {
+	    if (rse->generator[j] != 0) {
+		unsigned int term;
+
+		term = (rs->gf.log[tmp[j]] + root) % rs->gf.Np;
+		term = rs->gf.exp[term];
+		rse->generator[j] = gf_add(tmp[j - 1], term);
+	    } else {
+		rse->generator[j] = rse->generator[j - 1];
+	    }
+	}
+	rse->generator[0] = rs->gf.exp[(rs->gf.log[tmp[0]] + root) % rs->gf.Np];
+    }
+
+    /*
+     * Pre-compute the log so it doesn't have to be done every time
+     * when encoding.
+     */
+    for (i = 0; i <= rs->T; i++)
+	rse->generator[i] = rs->gf.log[rse->generator[i]];
 }
 
 /**
@@ -120,10 +121,9 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
 	for (j = 0; j < rs->T - 1; j++)
 	    parity[j] =
 		gf_add(parity[j + 1],
-				 gf_mul(&rs->gf, fb,
-						  rs->generator[j + 1]));
+		       gf_mul(&rs->gf, fb, se->generator[j + 1]));
 	parity[rs->T - 1] = gf_mul(&rs->gf, fb,
-					     rs->generator[rs->T]);
+					     rse->generator[rs->T]);
     }
 #endif
 
@@ -138,7 +138,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
 	    for (j = 1; j < rs->T; j++) {
 		gf_val tmp;
 
-		tmp = rs->gf.exp[(fb + rs->generator[rs->T - j]) % rs->gf.Np];
+		tmp = rs->gf.exp[(fb + rse->generator[rs->T - j]) % rs->gf.Np];
 		parity[j] = gf_add(parity[j], tmp);
 	    }
 	}
@@ -146,7 +146,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
 	    parity[j - 1] = parity[j];
 
 	if (fb != rs->gf.Np)
-	    parity[rs->T - 1] = rs->gf.exp[(fb + rs->generator[0]) % rs->gf.Np];
+	    parity[rs->T - 1] = rs->gf.exp[(fb + rse->generator[0]) % rs->gf.Np];
 	else
 	    parity[rs->T - 1] = 0;
     }

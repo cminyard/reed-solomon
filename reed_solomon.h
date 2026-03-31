@@ -28,15 +28,6 @@ struct reed_solomon {
     unsigned int fcr;
 
     struct galois_field gf;
-
-    /* FIXME - allocate these based on m. */
-
-#if GF_DYN_ALLOC
-    gf_val *generator;
-#else
-    /* Generator polynomial g(x) */
-    gf_val generator[GF_MAX];
-#endif
 };
 
 /**
@@ -59,6 +50,13 @@ int reed_solomon_init(struct reed_solomon *rs, unsigned int m,
 
 struct reed_solomon_encoder {
     struct reed_solomon *rs;
+
+#if GF_DYN_ALLOC
+    gf_val *generator;
+#else
+    /* Generator polynomial g(x) */
+    gf_val generator[GF_MAX];
+#endif
 };
 
 void reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
