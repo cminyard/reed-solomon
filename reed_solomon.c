@@ -74,13 +74,6 @@ reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
 	}
 	rse->generator[0] = rs->gf.exp[(rs->gf.log[tmp[0]] + root) % rs->gf.Np];
     }
-
-    /*
-     * Pre-compute the log so it doesn't have to be done every time
-     * when encoding.
-     */
-    for (i = 0; i <= rs->T; i++)
-	rse->generator[i] = rs->gf.log[rse->generator[i]];
 }
 
 /**
@@ -94,6 +87,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
 		    uint8_t *inbuf, unsigned int len, uint8_t *parity)
 {
     struct reed_solomon *rs = rse->rs;
+    struct galois_field *gf = &rs->gf;
     unsigned int i, j;
 
     if (len > rs->gf.Np - rs->T)
@@ -105,27 +99,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
     for (i = 0; i < rs->T; i++)
 	parity[i] = 0;
 
-#if 0 /* No need to process the pad, the result will still be 0. */
-    /* -------------------------------------------------------------
-     * Handle shortening:
-     *   Shift S dummy symbols (all zeros) through the encoder.
-     *
-     * This produces the same result as encoding an N-symbol RS code
-     * and then shortening it to length N.
-     * ------------------------------------------------------------- */
-    unsigned int N = len + rs->T;
-    unsigned int S = rs->gf.Np - N;
-    for (i = 0; i < S; i++) {
-	gf_val fb = parity[0];
-
-	for (j = 0; j < rs->T - 1; j++)
-	    parity[j] =
-		gf_add(parity[j + 1],
-		       gf_mul(&rs->gf, fb, se->generator[j + 1]));
-	parity[rs->T - 1] = gf_mul(&rs->gf, fb,
-					     rse->generator[rs->T]);
-    }
-#endif
+    /* No need to process the pad, the result will still be 0. */
 
     /* -------------------------------------------------------------
      * Feed the actual K information symbols
@@ -133,20 +107,19 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
     for (i = 0; i < len; i++) {
 	gf_val fb = gf_add(inbuf[i], parity[0]);
 
-	fb = rs->gf.log[fb];
-	if (fb != rs->gf.Np) {
+	if (fb != 0) {
 	    for (j = 1; j < rs->T; j++) {
 		gf_val tmp;
 
-		tmp = rs->gf.exp[(fb + rse->generator[rs->T - j]) % rs->gf.Np];
+		tmp = gf_mul(gf, fb, rse->generator[rs->T - j]);
 		parity[j] = gf_add(parity[j], tmp);
 	    }
 	}
 	for (j = 1; j < rs->T; j++)
 	    parity[j - 1] = parity[j];
 
-	if (fb != rs->gf.Np)
-	    parity[rs->T - 1] = rs->gf.exp[(fb + rse->generator[0]) % rs->gf.Np];
+	if (fb != 0)
+	    parity[rs->T - 1] = gf_mul(gf, fb, rse->generator[0]);
 	else
 	    parity[rs->T - 1] = 0;
     }
