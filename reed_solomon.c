@@ -54,7 +54,6 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
 
     root = rs->fcr * rs->prim;
     for (i = 0; i < rs->T; i++, root += rs->prim) {
-	/* Copy existing coefficients */
 	for (j = 0; j <= i; j++)
 	    tmp[j] = rse->generator[j];
 
@@ -63,6 +62,7 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
 	/* Perform polynomial multiplication by (x - α^i) */
 	for (j = i; j > 0; j--) {
 	    if (rse->generator[j] != 0)
+		/* rse->generator[j] = tmp[j - 1] + (tmp[j] * a ^ root) */
 		rse->generator[j] = gf_add(tmp[j - 1],
 					   gf_mul(gf, tmp[j],
 						  gf_exp_o(gf, root)));
@@ -90,21 +90,17 @@ rs_encode(struct reed_solomon_encoder *rse,
     if (len > gf->Np - rs->T)
 	return 1;
 
-    /* -------------------------------------------------------------
-     * Initialize T parity registers to zero
-     * ------------------------------------------------------------- */
     memset(parity, 0, rs->T * sizeof(gf_val));
 
     /* No need to process the pad, the result will still be 0. */
 
-    /* -------------------------------------------------------------
-     * Feed the actual K information symbols
-     * ------------------------------------------------------------- */
+    /* Feed the actual data. */
     for (i = 0; i < len; i++) {
 	gf_val fb = gf_add(inbuf[i], parity[0]);
 
 	if (fb != 0) {
 	    for (j = 1; j < rs->T; j++)
+		/* parity[j] += fb * rse->generator[rs->T - j] */
 		parity[j] = gf_add(parity[j],
 				   gf_mul(gf, fb, rse->generator[rs->T - j]));
 	}
@@ -161,6 +157,7 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
 
     for (i = 1; i < N; i++) {
 	for (j = 0; j < rs->T; j++)
+	    /* S[j] = e[i] + (S[j] * (rs->fcr + j) ^ rs->prim) */
 	    S[j] = gf_add(e[i],
 			  gf_mul(gf, S[j],
 				 gf_pow_nl(gf, rs->fcr + j, rs->prim)));
@@ -209,6 +206,7 @@ berlekamp_massey(struct reed_solomon *rs,
 	gf_val d = 0;
 
 	for (i = 0; i < n; i++)
+	    /* d += C[i] * S[n - i - 1] */
 	    d = gf_add(d, gf_mul(gf, C[i], S[n - i - 1]));
 
 	if (d == 0) {
@@ -220,7 +218,6 @@ berlekamp_massey(struct reed_solomon *rs,
 		    Temp[i + 1] = gf_add(C[i + 1], gf_mul(gf, d, B[i]));
 
 	    if (2 * L <= n - 1) {
-		/* Update B(x) ← previous C(x) */
 		for (i = 0; i <= rs->T; i++)
 		    B[i] = gf_div(gf, C[i], d);
 
@@ -305,6 +302,7 @@ correct_errors(struct reed_solomon *rs,
     for (i = 0; i <= o; i++) {
 	O[i] = 0;
 	for (j = 0; j <= i; j++)
+	    /* O[i] += S[i - j] * C[j] */
 	    O[i] = gf_add(O[i], gf_mul(gf, S[i - j], C[j]));
     }
 
@@ -312,8 +310,10 @@ correct_errors(struct reed_solomon *rs,
 	unsigned int tmp = 0, tmp2, d;
 
 	for (j = 0; j <= o; j++)
+	    /* tmp += O[j] * j ^ err_idx[i] */
 	    tmp = gf_add(tmp, gf_mul(gf, O[j],
 				     gf_pow_nl(gf, j, err_idx[i])));
+	/* tmp2 = err_index[i] ^ (fcr - 1) */
 	tmp2 = gf_pow_nl(gf, err_idx[i], rs->fcr - 1);
 
 	d = 0;
@@ -322,6 +322,7 @@ correct_errors(struct reed_solomon *rs,
 	else
 	    j = rs->T - 1;
 	for (j = j & ~1; ; j -= 2) {
+	    /* d += C[j + 1] * j ^ err_idx[i] */
 	    d = gf_add(d, gf_mul(gf, C[j + 1],
 				 gf_pow_nl(gf, j, err_idx[i])));
 	    if (j < 2)
