@@ -88,7 +88,7 @@ struct reed_solomon_decoder {
     unsigned int K;  /* Number of information symbols */
 
 #if GF_DYN_ALLOC
-    gf_val *recv_sym_p;
+    gf_val *data;
 
     gf_val *C;
     gf_val *B;
@@ -101,7 +101,7 @@ struct reed_solomon_decoder {
     gf_val *O;
 #else
     /* gf_val recv_sym_p[Np]; */
-    gf_val recv_sym_p[GF_MAX];
+    gf_val data[GF_MAX];
 
     gf_val C[REED_SOLOMON_MAX_T + 1]; /* current polynomial */
     gf_val B[REED_SOLOMON_MAX_T + 1]; /* previous polynomial */

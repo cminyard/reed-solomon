@@ -135,7 +135,7 @@ reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
 {
     rsd->rs = rs;
 #if GF_DYN_ALLOC
-    rsd->recv_sym_p = malloc(sizeof(gf_val) * GF_MAX);
+    rsd->data = malloc(sizeof(gf_val) * GF_MAX);
 
     rsd->C = malloc(sizeof(gf_val) * (REED_SOLOMON_MAX_T + 1));
     rsd->B = malloc(sizeof(gf_val) * (REED_SOLOMON_MAX_T + 1));
@@ -380,13 +380,13 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
     /* FIXME = optimize if S == 0. */
     /* Build parent-length buffer */
     for (i = 0; i < rsd->S; i++)
-	rsd->recv_sym_p[i] = 0;
+	rsd->data[i] = 0;
 
     for (i = 0; i < rsd->N; i++)
-	rsd->recv_sym_p[rsd->S + i] = buf[i];
+	rsd->data[rsd->S + i] = buf[i];
 
     /* Syndromes */
-    count = compute_syndromes(rs, rsd->N, rsd->recv_sym_p, rsd->synd);
+    count = compute_syndromes(rs, rsd->N, rsd->data, rsd->synd);
 
     if (count != 0) {
 	/* BM → locator polynomial */
@@ -400,7 +400,7 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 
 	/* Correct */
 	if (count > 0)
-	    correct_errors(rs, rsd->recv_sym_p, rsd->synd, rsd->C, rsd->O,
+	    correct_errors(rs, rsd->data, rsd->synd, rsd->C, rsd->O,
 			   rsd->error_idx, rsd->error_pos, count);
     }
 
@@ -411,7 +411,7 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 
     /* Output K information symbols */
     for (i = 0; i < rsd->K; i++)
-	buf[i] = rsd->recv_sym_p[rsd->S + i];
+	buf[i] = rsd->data[rsd->S + i];
 
     return 0;
 }
