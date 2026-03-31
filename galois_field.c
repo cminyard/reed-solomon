@@ -28,8 +28,8 @@ int galois_field_init(struct galois_field *gf,
     gf->Np = (1 << m) - 1;
 
 #if GF_DYN_ALLOC
-    gf->exp = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
-    gf->log = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+    gf->exp = malloc(sizeof(gf_val) * GF_MAX);
+    gf->log = malloc(sizeof(gf_val) * GF_MAX);
 #endif
 
     /* Build exp/log tables */
@@ -45,7 +45,7 @@ int galois_field_init(struct galois_field *gf,
     }
     /*
      * gf->exp[i] is one larger than necessary to avoid having to do a mod
-     * in galois_field_inv().
+     * in gf_inv().
      */
     gf->exp[gf->Np] = gf->exp[0];
 

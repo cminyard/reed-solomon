@@ -32,10 +32,10 @@ struct reed_solomon {
     /* FIXME - allocate these based on m. */
 
 #if GF_DYN_ALLOC
-    galois_field_val *generator;
+    gf_val *generator;
 #else
     /* Generator polynomial g(x) */
-    galois_field_val generator[GALOIS_FIELD_MAX];
+    gf_val generator[GF_MAX];
 #endif
 };
 
@@ -90,30 +90,30 @@ struct reed_solomon_decoder {
     unsigned int K;  /* Number of information symbols */
 
 #if GF_DYN_ALLOC
-    galois_field_val *recv_sym_p;
+    gf_val *recv_sym_p;
 
-    galois_field_val *C;
-    galois_field_val *B;
-    galois_field_val *Temp;
+    gf_val *C;
+    gf_val *B;
+    gf_val *Temp;
 
-    galois_field_val *synd;
+    gf_val *synd;
     unsigned int *error_idx;
     unsigned int *error_pos;
 
-    galois_field_val *O;
+    gf_val *O;
 #else
-    /* galois_field_val recv_sym_p[Np]; */
-    galois_field_val recv_sym_p[GALOIS_FIELD_MAX];
+    /* gf_val recv_sym_p[Np]; */
+    gf_val recv_sym_p[GF_MAX];
 
-    galois_field_val C[REED_SOLOMON_MAX_T + 1]; /* current polynomial */
-    galois_field_val B[REED_SOLOMON_MAX_T + 1]; /* previous polynomial */
-    galois_field_val Temp[REED_SOLOMON_MAX_T + 1];
+    gf_val C[REED_SOLOMON_MAX_T + 1]; /* current polynomial */
+    gf_val B[REED_SOLOMON_MAX_T + 1]; /* previous polynomial */
+    gf_val Temp[REED_SOLOMON_MAX_T + 1];
 
-    galois_field_val synd[REED_SOLOMON_MAX_T];
+    gf_val synd[REED_SOLOMON_MAX_T];
     unsigned int error_idx[REED_SOLOMON_MAX_ERR];
     unsigned int error_pos[REED_SOLOMON_MAX_ERR];
 
-    galois_field_val O[REED_SOLOMON_MAX_ERR];
+    gf_val O[REED_SOLOMON_MAX_ERR];
 #endif
 };
 
