@@ -105,9 +105,9 @@ struct reed_solomon_decoder {
     /* galois_field_val recv_sym_p[Np]; */
     galois_field_val recv_sym_p[GALOIS_FIELD_MAX];
 
-    galois_field_val C[GALOIS_FIELD_MAX]; /* current polynomial */
-    galois_field_val B[GALOIS_FIELD_MAX]; /* previous polynomial */
-    galois_field_val Temp[GALOIS_FIELD_MAX + 1];
+    galois_field_val C[REED_SOLOMON_MAX_T + 1]; /* current polynomial */
+    galois_field_val B[REED_SOLOMON_MAX_T + 1]; /* previous polynomial */
+    galois_field_val Temp[REED_SOLOMON_MAX_T + 1];
 
     galois_field_val synd[REED_SOLOMON_MAX_T];
     unsigned int error_idx[REED_SOLOMON_MAX_ERR];

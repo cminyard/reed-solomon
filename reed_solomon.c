@@ -163,9 +163,9 @@ reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
 #if GF_DYN_ALLOC
     rsd->recv_sym_p = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
 
-    rsd->C = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
-    rsd->B = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
-    rsd->Temp = malloc(sizeof(galois_field_val) * (GALOIS_FIELD_MAX + 1));
+    rsd->C = malloc(sizeof(galois_field_val) * (REED_SOLOMON_MAX_T + 1));
+    rsd->B = malloc(sizeof(galois_field_val) * (REED_SOLOMON_MAX_T + 1));
+    rsd->Temp = malloc(sizeof(galois_field_val) * (REED_SOLOMON_MAX_T + 1));
 
     rsd->synd = malloc(sizeof(galois_field_val) * REED_SOLOMON_MAX_T);
     rsd->error_pos = malloc(sizeof(unsigned int) * REED_SOLOMON_MAX_ERR);
@@ -181,20 +181,18 @@ reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
  *     S_i = Σ_{j=0}^{Np-1} r_j α^{(i+1)*j},   for i = 0..T-1
  *
  * Returns the number of non-zero syndromes.
- * Zero syndromes → no errors.
+ * Zero syndromes = no errors.
  * ------------------------------------------------------------------------- */
 static unsigned int
-compute_syndromes(struct reed_solomon_decoder *rsd,
-		  const galois_field_val *e)
+compute_syndromes(struct reed_solomon *rs, unsigned int N,
+		  const galois_field_val *e, galois_field_val *S)
 {
-    struct reed_solomon *rs = rsd->rs;
-    galois_field_val *S = rsd->synd;
     unsigned int i, j, count = 0;
 
     for (i = 0; i < rs->T; i++)
 	S[i] = e[0];
 
-    for (i = 1; i < rsd->N; i++) {
+    for (i = 1; i < N; i++) {
 	for (j = 0; j < rs->T; j++) {
 	    if (S[j] == 0) {
 		S[j] = e[i];
@@ -229,28 +227,29 @@ compute_syndromes(struct reed_solomon_decoder *rsd,
  * L = degree of error-locator polynomial
  * ------------------------------------------------------------------------- */
 static unsigned int
-berlekamp_massey(struct reed_solomon_decoder *rsd)
+berlekamp_massey(struct reed_solomon *rs,
+		 galois_field_val *S,
+		 galois_field_val *B, galois_field_val *C,
+		 galois_field_val *Temp)
 {
-    struct reed_solomon *rs = rsd->rs;
-    const galois_field_val *S = rsd->synd;
     unsigned int L = 0;
     unsigned int i, n;
 
     /* FIXME: Reduce size of B, C, and Temp */
-    memset(rsd->B, 0, sizeof(galois_field_val) * GALOIS_FIELD_MAX);
-    memset(rsd->C, 0, sizeof(galois_field_val) * GALOIS_FIELD_MAX);
+    memset(B, 0, sizeof(galois_field_val) * (REED_SOLOMON_MAX_T + 1));
+    memset(C, 0, sizeof(galois_field_val) * (REED_SOLOMON_MAX_T + 1));
 
-    rsd->C[0] = 1;
+    C[0] = 1;
 
     for (i = 0; i <= rs->T; i++)
-	rsd->B[i] = rs->gf.log[rsd->C[i]];
+	B[i] = rs->gf.log[C[i]];
 
     for (n = 1; n <= rs->T; n++) {
 	galois_field_val d = 0;
 
 	for (i = 0; i < n; i++) {
-	    if (rsd->C[i] != 0 && S[n - i - 1] != rs->gf.Np) {
-		unsigned int tmp = rs->gf.log[rsd->C[i]] + S[n - i - 1];
+	    if (C[i] != 0 && S[n - i - 1] != rs->gf.Np) {
+		unsigned int tmp = rs->gf.log[C[i]] + S[n - i - 1];
 
 		tmp = rs->gf.exp[tmp % rs->gf.Np];
 		d = galois_field_add(d, tmp);
@@ -258,44 +257,44 @@ berlekamp_massey(struct reed_solomon_decoder *rsd)
 	}
 
 	if (d == 0) {
-	    memmove(rsd->B + 1, rsd->B, rs->T * sizeof(rsd->B[0]));
-	    rsd->B[0] = rs->gf.Np;
+	    memmove(B + 1, B, rs->T * sizeof(B[0]));
+	    B[0] = rs->gf.Np;
 	} else {
 	    d = rs->gf.log[d];
 
-	    rsd->Temp[0] = rsd->C[0];
+	    Temp[0] = C[0];
 	    for (i = 0; i < rs->T; i++) {
-		if (rsd->B[i] != rs->gf.Np) {
+		if (B[i] != rs->gf.Np) {
 		    unsigned int tmp;
 
-		    tmp = rs->gf.exp[(d + rsd->B[i]) % rs->gf.Np];
-		    rsd->Temp[i + 1] = galois_field_add(rsd->C[i + 1], tmp);
+		    tmp = rs->gf.exp[(d + B[i]) % rs->gf.Np];
+		    Temp[i + 1] = galois_field_add(C[i + 1], tmp);
 		} else {
-		    rsd->Temp[i + 1] = rsd->C[i + 1];
+		    Temp[i + 1] = C[i + 1];
 		}
 	    }
 
 	    if (2 * L <= n - 1) {
 		/* Update B(x) ← previous C(x) */
 		for (i = 0; i <= rs->T; i++) {
-		    if (rsd->C[i] == 0) {
-			rsd->B[i] = rs->gf.Np;
+		    if (C[i] == 0) {
+			B[i] = rs->gf.Np;
 		    } else {
 			unsigned int tmp;
 
-			tmp = rs->gf.log[rsd->C[i]] - d + rs->gf.Np;
-			rsd->B[i] = tmp % rs->gf.Np;
+			tmp = rs->gf.log[C[i]] - d + rs->gf.Np;
+			B[i] = tmp % rs->gf.Np;
 		    }
 		}
 
 		L = n - L;
 	    } else {
-		memmove(rsd->B + 1, rsd->B, rs->T * sizeof(rsd->B[0]));
-		rsd->B[0] = rs->gf.Np;
+		memmove(B + 1, B, rs->T * sizeof(B[0]));
+		B[0] = rs->gf.Np;
 	    }
 
 	    for (i = 0; i <= rs->T; i++)
-		rsd->C[i] = rsd->Temp[i];
+		C[i] = Temp[i];
 	}
     }
 
@@ -307,37 +306,39 @@ berlekamp_massey(struct reed_solomon_decoder *rsd)
  *
  * Find i such that σ(α^{-i}) = 0, for i = 0..Np-1.
  * Each such i corresponds to an error at position i.
+ * Returns non-zero if errors are uncorrectible.
  * ------------------------------------------------------------------------- */
 static unsigned int
-chien_search(struct reed_solomon_decoder *rsd, unsigned int L,
+chien_search(struct reed_solomon *rs, unsigned int L,
+	     galois_field_val *C, galois_field_val *Temp,
+	     unsigned int *err_idx, unsigned int *err_pos,
 	     unsigned int *rcount)
 {
-    struct reed_solomon *rs = rsd->rs;
     unsigned int count = 0, d = 0;
     unsigned int i, j, k;
 
     for (i = 0; i <= rs->T; i++) {
-	if (rsd->C[i] != 0)
+	if (C[i] != 0)
 	    d = i;
-	rsd->C[i] = rs->gf.log[rsd->C[i]];
+	C[i] = rs->gf.log[C[i]];
     }
 
     for (i = 1; i <= rs->T; i++)
-	rsd->Temp[i] = rsd->C[i];
+	Temp[i] = C[i];
     k = rs->iprim - 1;
     for (i = 1; i <= rs->gf.Np; i++) {
 	unsigned int sum = 1;
 
 	for (j = d; j > 0; j--) {
-	    if (rsd->Temp[j] != rs->gf.Np) {
-		rsd->Temp[j] = (rsd->Temp[j] + j) % rs->gf.Np;
-		sum = galois_field_add(sum, rs->gf.exp[rsd->Temp[j]]);
+	    if (Temp[j] != rs->gf.Np) {
+		Temp[j] = (Temp[j] + j) % rs->gf.Np;
+		sum = galois_field_add(sum, rs->gf.exp[Temp[j]]);
 	    }
 	}
 
 	if (sum == 0) {
-	    rsd->error_idx[count] = i;
-	    rsd->error_pos[count++] = k;
+	    err_idx[count] = i;
+	    err_pos[count++] = k;
 	    if (count == d)
 		break;
 	}
@@ -358,11 +359,12 @@ chien_search(struct reed_solomon_decoder *rsd, unsigned int L,
  * Solve for e_k using Gaussian elimination in GF(2^m).
  * ------------------------------------------------------------------------- */
 static void
-correct_errors(struct reed_solomon_decoder *rsd,
+correct_errors(struct reed_solomon *rs,
 	       galois_field_val *e, const galois_field_val *S,
-	       const unsigned int *err_pos, unsigned int err_cnt)
+	       const galois_field_val *C, galois_field_val *O,
+	       const unsigned int *err_idx, const unsigned int *err_pos,
+	       unsigned int err_cnt)
 {
-    struct reed_solomon *rs = rsd->rs;
     unsigned int i, j, o;
 
     o = err_cnt - 1;
@@ -370,24 +372,24 @@ correct_errors(struct reed_solomon_decoder *rsd,
 	unsigned int tmp = 0;
 
 	for (j = i; ; j--) {
-	    if (S[i - j] != rs->gf.Np && rsd->C[j] != rs->gf.Np)
-		tmp ^= rs->gf.exp[(S[i - j] + rsd->C[j]) % rs->gf.Np];
+	    if (S[i - j] != rs->gf.Np && C[j] != rs->gf.Np)
+		tmp ^= rs->gf.exp[(S[i - j] + C[j]) % rs->gf.Np];
 	    if (j == 0)
 		break;
 	}
-	rsd->O[i] = rs->gf.log[tmp];
+	O[i] = rs->gf.log[tmp];
     }
 
     for (i = err_cnt - 1; ; i--) {
 	unsigned int tmp = 0, tmp2, d;
 
 	for (j = o; ; j--) {
-	    if (rsd->O[j] != rs->gf.Np)
-		tmp ^= rs->gf.exp[(rsd->O[j] + j * rsd->error_idx[i]) % rs->gf.Np];
+	    if (O[j] != rs->gf.Np)
+		tmp ^= rs->gf.exp[(O[j] + j * err_idx[i]) % rs->gf.Np];
 	    if (j == 0)
 		break;
 	}
-	tmp2 = rs->gf.exp[(rsd->error_idx[i] * (rs->fcr - 1) + rs->gf.Np) % rs->gf.Np];
+	tmp2 = rs->gf.exp[(err_idx[i] * (rs->fcr - 1) + rs->gf.Np) % rs->gf.Np];
 
 	d = 0;
 	if (err_cnt < rs->T - 1)
@@ -395,14 +397,14 @@ correct_errors(struct reed_solomon_decoder *rsd,
 	else
 	    j = rs->T - 1;
 	for (j = j & ~1; ; j -= 2) {
-	    if (rsd->C[j + 1] != rs->gf.Np)
-		d ^= rs->gf.exp[(rsd->C[j + 1] + j * rsd->error_idx[i]) % rs->gf.Np];
+	    if (C[j + 1] != rs->gf.Np)
+		d ^= rs->gf.exp[(C[j + 1] + j * err_idx[i]) % rs->gf.Np];
 	    if (j < 2)
 		break;
 	}
 
 	if (tmp != 0) {
-	    e[rsd->error_pos[i]] ^= rs->gf.exp[(rs->gf.log[tmp] + rs->gf.log[tmp2] + rs->gf.Np - rs->gf.log[d]) % rs->gf.Np];
+	    e[err_pos[i]] ^= rs->gf.exp[(rs->gf.log[tmp] + rs->gf.log[tmp2] + rs->gf.Np - rs->gf.log[d]) % rs->gf.Np];
 	}
 
 	if (i == 0)
@@ -448,20 +450,22 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 	rsd->recv_sym_p[rsd->S + i] = buf[i];
 
     /* Syndromes */
-    count = compute_syndromes(rsd, rsd->recv_sym_p);
+    count = compute_syndromes(rs, rsd->N, rsd->recv_sym_p, rsd->synd);
 
     if (count != 0) {
 	/* BM → locator polynomial */
-	unsigned int L = berlekamp_massey(rsd);
+	unsigned int L = berlekamp_massey(rs, rsd->synd, rsd->B, rsd->C,
+					  rsd->Temp);
 
 	/* Chien search */
-	if (chien_search(rsd, L, &count))
+	if (chien_search(rs, L, rsd->C, rsd->Temp,
+			 rsd->error_idx, rsd->error_pos, &count))
 	    return 1; /* Could not correct all symbols. */
 
 	/* Correct */
 	if (count > 0)
-	    correct_errors(rsd, rsd->recv_sym_p,
-			   rsd->synd, rsd->error_pos, count);
+	    correct_errors(rs, rsd->recv_sym_p, rsd->synd, rsd->C, rsd->O,
+			   rsd->error_idx, rsd->error_pos, count);
     }
 
     *err_count = count;
