@@ -104,8 +104,7 @@ rs_encode(struct reed_solomon_encoder *rse,
 		parity[j] = gf_add(parity[j],
 				   gf_mul(gf, fb, rse->generator[rs->T - j]));
 	}
-	for (j = 1; j < rs->T; j++)
-	    parity[j - 1] = parity[j];
+	memcpy(parity, parity + 1, rs->T * sizeof(gf_val));
 
 	if (fb != 0)
 	    parity[rs->T - 1] = gf_mul(gf, fb, rse->generator[0]);
