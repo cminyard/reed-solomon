@@ -17,22 +17,17 @@
 #include "galois_field.h"
 
 /* Maximum value T may be. */
-#define REED_SOLOMON_MAX_T 32
+#define RS_MAX_T 32
 
 struct reed_solomon {
     unsigned int m;  /* GF size parameter m → GF(2^m) */
     unsigned int T;  /* Number of parity symbols (generator degree) */
 
+    unsigned int prim;
+    unsigned int iprim;
+    unsigned int fcr;
+
     struct galois_field gf;
-
-    /* FIXME - allocate these based on m. */
-
-#if GF_DYN_ALLOC
-    galois_field_val *generator;
-#else
-    /* Generator polynomial g(x) */
-    galois_field_val generator[GALOIS_FIELD_MAX];
-#endif
 };
 
 /**
@@ -49,14 +44,23 @@ struct reed_solomon {
  *
  * @return 0 on success, non-zero on failure.
  */
-int reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T);
+int reed_solomon_init(struct reed_solomon *rs, unsigned int m,
+		      unsigned int gfpoly, unsigned int T,
+		      unsigned int fcs, unsigned int prim);
 
 struct reed_solomon_encoder {
     struct reed_solomon *rs;
+
+#if GF_DYN_ALLOC
+    gf_val *generator;
+#else
+    /* Generator polynomial g(x) */
+    gf_val generator[GF_MAX];
+#endif
 };
 
-void reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
-			       struct reed_solomon *rs);
+void rs_encoder_init(struct reed_solomon_encoder *rse,
+		     struct reed_solomon *rs);
 
 /**
  * @brief Systematic Reed–Solomon encoding.
@@ -70,11 +74,11 @@ void reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
  *
  * @return 0 on success, non-zero on error.
  */
-int reed_solomon_encode(struct reed_solomon_encoder *rse,
-			uint8_t *buf, unsigned int len, uint8_t *parity);
+int rs_encode(struct reed_solomon_encoder *rse,
+	      uint8_t *buf, unsigned int len, uint8_t *parity);
 
 /* We can process up to T/2 errors.  More than that we ignore. */
-#define REED_SOLOMON_MAX_ERR (REED_SOLOMON_MAX_T / 2)
+#define RS_MAX_ERR (RS_MAX_T / 2)
 
 struct reed_solomon_decoder {
     struct reed_solomon *rs;
@@ -84,38 +88,35 @@ struct reed_solomon_decoder {
     unsigned int K;  /* Number of information symbols */
 
 #if GF_DYN_ALLOC
-    galois_field_val *C;
-    galois_field_val *B;
-    galois_field_val *Temp;
+    gf_val *data;
 
-    galois_field_val **A;
-    galois_field_val *e;
+    gf_val *C;
+    gf_val *B;
+    gf_val *Temp;
 
-    /* galois_field_val recv_sym_p[Np]; */
-    galois_field_val *recv_sym_p;
-
-    galois_field_val *synd;
-    galois_field_val *sigma;
+    gf_val *synd;
+    unsigned int *error_idx;
     unsigned int *error_pos;
+
+    gf_val *O;
 #else
-    galois_field_val C[GALOIS_FIELD_MAX]; /* current polynomial */
-    galois_field_val B[GALOIS_FIELD_MAX]; /* previous polynomial */
-    galois_field_val Temp[GALOIS_FIELD_MAX];
+    /* gf_val recv_sym_p[Np]; */
+    gf_val data[GF_MAX];
 
-    galois_field_val A[REED_SOLOMON_MAX_ERR][REED_SOLOMON_MAX_ERR];
-    galois_field_val e[REED_SOLOMON_MAX_ERR];
+    gf_val C[RS_MAX_T + 1]; /* current polynomial */
+    gf_val B[RS_MAX_T + 1]; /* previous polynomial */
+    gf_val Temp[RS_MAX_T + 1];
 
-    /* galois_field_val recv_sym_p[Np]; */
-    galois_field_val recv_sym_p[GALOIS_FIELD_MAX];
+    gf_val synd[RS_MAX_T];
+    unsigned int error_idx[RS_MAX_ERR];
+    unsigned int error_pos[RS_MAX_ERR];
 
-    galois_field_val synd[REED_SOLOMON_MAX_T];
-    galois_field_val sigma[REED_SOLOMON_MAX_ERR + 1];
-    unsigned int error_pos[REED_SOLOMON_MAX_ERR];
+    gf_val O[RS_MAX_ERR];
 #endif
 };
 
-void reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
-			       struct reed_solomon *rs);
+void rs_decoder_init(struct reed_solomon_decoder *rsd,
+		     struct reed_solomon *rs);
 
 /**
  * @brief Decode a shortened systematic Reed–Solomon codeword.
@@ -130,8 +131,8 @@ void reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
  *
  * @return 0 on success, non-zero on error.
  */
-int reed_solomon_decode(struct reed_solomon_decoder *rsd,
-			uint8_t *buf, unsigned int len,
-			unsigned int *err_count);
+int rs_decode(struct reed_solomon_decoder *rsd,
+	      uint8_t *buf, unsigned int len,
+	      unsigned int *err_count);
 
 #endif /* REED_SOLOMON_H */

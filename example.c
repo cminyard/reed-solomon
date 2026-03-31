@@ -5,8 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include "reed_solomon.h"
-
-#define ERR_COUNT_CHECK 1
+#include <fec.h>
 
 static unsigned int
 test_one(unsigned int num_errs,
@@ -15,6 +14,7 @@ test_one(unsigned int num_errs,
 {
     unsigned int i;
     uint8_t origbuf[255], buf[255];
+    uint8_t buf2[255];
     bool errpos[255] = { false };
     unsigned int err = 0;
     unsigned int errcount = 0;
@@ -22,10 +22,21 @@ test_one(unsigned int num_errs,
     for (i = 0; i < 223; i++) {
 	buf[i] = rand();
 	origbuf[i] = buf[i];
+	buf2[i] = origbuf[i];
     }
 
     /* Add the parity bytes. */
-    reed_solomon_encode(rse, buf, 223, buf + 223);
+    rs_encode(rse, buf, 223, buf + 223);
+
+    /* Do it with libfec to compare. */
+    encode_rs_8(buf2, buf2 + 223, 0);
+
+    for (i = 0; i < 255; i++) {
+	if (buf[i] != buf2[i]) {
+	    printf("Diff1(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
+	    return 1;
+	}
+    }
 
 #if 0
     printf("Encoded:");
@@ -45,17 +56,37 @@ test_one(unsigned int num_errs,
 	    continue;
 
 	buf[pos / 8] ^= 1 << (pos % 8);
+	buf2[pos / 8] ^= 1 << (pos % 8);
+#if 0
+	printf("Injecting error at byte %u\n", pos / 8);
+#endif
 	errpos[pos / 8] = true;
 	i++;
     }
-    reed_solomon_decode(rsd, buf, 255, &errcount);
-#if ERR_COUNT_CHECK
-    if (errcount != num_errs)
-	printf("Error count mismatch: %u %u\n", num_errs, errcount);
-#endif
+    if (rs_decode(rsd, buf, 255, &errcount)) {
+	return 1;
+    } else {
+	if (errcount != num_errs) {
+	    printf("Error count mismatch: %u %u\n", num_errs, errcount);
+	    return 1;
+	}
+    }
+
+    errcount = decode_rs_8(buf2, NULL, 0, 0);
+    if (errcount != num_errs) {
+	printf("Bad err count 1\n");
+    }
+
+    for (i = 0; i < 223; i++) {
+	if (buf2[i] != origbuf[i]) {
+	    printf("Diff2(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
+	    return 1;
+	}
+    }
 
     for (i = 0; i < 223; i++) {
 	if (buf[i] != origbuf[i]) {
+	    printf("Data mismatch\n");
 	    err = 1;
 	    break;
 	}
@@ -108,15 +139,24 @@ main(int argc, char *argv[])
     }
     srand(time(NULL));
 
-    reed_solomon_init(&rs, 8, 32);
-    reed_solomon_encoder_init(&rse, &rs);
-    reed_solomon_decoder_init(&rsd, &rs);
+    reed_solomon_init(&rs, 8, 0x187, 32, 112, 11);
+    rs_encoder_init(&rse, &rs);
+    rs_decoder_init(&rsd, &rs);
 
-    for (i = 0; ; i++) {
+    for (i = 0; i < 128; i++) {
 	unsigned int errs = test_loop(loops, i, &rse, &rsd);
 
-	if (errs == loops || do_cpu_usage)
+	if (do_cpu_usage)
 	    break;
+
+	if (errs == loops && i <= 16) {
+	    err = 1;
+	    break;
+	}
+	if (errs != loops && i > 16) {
+	    err = 1;
+	    break;
+	}
     }
 
     return err;
