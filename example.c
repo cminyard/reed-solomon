@@ -27,7 +27,7 @@ test_one(unsigned int num_errs,
 
     /* Add the parity bytes. */
     reed_solomon_encode(rse, buf, 223, buf + 223);
-#if 1
+#if 0
     uint8_t buf2[255];
 
     for (i = 0; i < 223; i++)
@@ -59,19 +59,26 @@ test_one(unsigned int num_errs,
 	    continue;
 
 	buf[pos / 8] ^= 1 << (pos % 8);
-#if ERR_COUNT_CHECK
+#if 0
 	buf2[pos / 8] ^= 1 << (pos % 8);
+#endif
+#if 0
 	printf("Injecting error at byte %u\n", pos / 8);
 #endif
 	errpos[pos / 8] = true;
 	i++;
     }
-    reed_solomon_decode(rsd, buf, 255, &errcount);
+    if (reed_solomon_decode(rsd, buf, 255, &errcount)) {
+	return 1;
+    } else {
 #if ERR_COUNT_CHECK
-    if (errcount != num_errs)
-	printf("Error count mismatch: %u %u\n", num_errs, errcount);
+	if (errcount != num_errs) {
+	    printf("Error count mismatch: %u %u\n", num_errs, errcount);
+	    return 1;
+	}
 #endif
-#if 1
+    }
+#if 0
     printf("errcount = %u\n", errcount);
     errcount = decode_rs_8(buf2, NULL, 0, 0);
     printf("errcount(2) = %u\n", errcount);
@@ -84,6 +91,7 @@ test_one(unsigned int num_errs,
 
     for (i = 0; i < 223; i++) {
 	if (buf[i] != origbuf[i]) {
+	    printf("Data mismatch\n");
 	    err = 1;
 	    break;
 	}
@@ -140,11 +148,20 @@ main(int argc, char *argv[])
     reed_solomon_encoder_init(&rse, &rs);
     reed_solomon_decoder_init(&rsd, &rs);
 
-    for (i = 0; ; i++) {
+    for (i = 0; i < 128; i++) {
 	unsigned int errs = test_loop(loops, i, &rse, &rsd);
 
-	if (errs == loops || do_cpu_usage)
+	if (do_cpu_usage)
 	    break;
+
+	if (errs == loops && i <= 16) {
+	    err = 1;
+	    break;
+	}
+	if (errs != loops && i > 16) {
+	    err = 1;
+	    break;
+	}
     }
 
     return err;

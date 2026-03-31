@@ -90,31 +90,30 @@ struct reed_solomon_decoder {
     unsigned int K;  /* Number of information symbols */
 
 #if GF_DYN_ALLOC
+    galois_field_val *recv_sym_p;
+
     galois_field_val *C;
     galois_field_val *B;
     galois_field_val *Temp;
 
-    galois_field_val **A;
-    galois_field_val *e;
-
-    /* galois_field_val recv_sym_p[Np]; */
-    galois_field_val *recv_sym_p;
-
     galois_field_val *synd;
+    unsigned int *error_idx;
     unsigned int *error_pos;
+
+    galois_field_val *O;
 #else
+    /* galois_field_val recv_sym_p[Np]; */
+    galois_field_val recv_sym_p[GALOIS_FIELD_MAX];
+
     galois_field_val C[GALOIS_FIELD_MAX]; /* current polynomial */
     galois_field_val B[GALOIS_FIELD_MAX]; /* previous polynomial */
     galois_field_val Temp[GALOIS_FIELD_MAX + 1];
 
-    galois_field_val A[REED_SOLOMON_MAX_ERR][REED_SOLOMON_MAX_ERR];
-    galois_field_val e[REED_SOLOMON_MAX_ERR];
-
-    /* galois_field_val recv_sym_p[Np]; */
-    galois_field_val recv_sym_p[GALOIS_FIELD_MAX];
-
     galois_field_val synd[REED_SOLOMON_MAX_T];
+    unsigned int error_idx[REED_SOLOMON_MAX_ERR];
     unsigned int error_pos[REED_SOLOMON_MAX_ERR];
+
+    galois_field_val O[REED_SOLOMON_MAX_ERR];
 #endif
 };
 
