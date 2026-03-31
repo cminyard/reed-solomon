@@ -104,7 +104,7 @@ struct reed_solomon_decoder {
     gf_val data[GF_MAX];
 
     gf_val C[RS_MAX_T + 1]; /* current polynomial */
-    gf_val B[RS_MAX_T + 1]; /* previous polynomial */
+    gf_val B[2 * RS_MAX_T + 1)]; /* previous polynomial */
     gf_val Temp[RS_MAX_T + 1];
 
     gf_val synd[RS_MAX_T];

@@ -17,7 +17,7 @@
 #include <assert.h>
 
 /* Define for debugging with valgrind. */
-#define GF_DYN_ALLOC 0
+#define GF_DYN_ALLOC 1
 
 #if GF_DYN_ALLOC
 #include <stdlib.h>
