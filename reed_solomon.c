@@ -13,7 +13,7 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m,
     if (err)
 	return err;
 
-    if (T > REED_SOLOMON_MAX_T)
+    if (T > RS_MAX_T)
 	return 1;
     if (T >= rs->gf.Np)
 	return 1;
@@ -31,8 +31,8 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m,
 }
 
 void
-reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
-			  struct reed_solomon *rs)
+rs_encoder_init(struct reed_solomon_encoder *rse,
+		struct reed_solomon *rs)
 {
     struct galois_field *gf = &rs->gf;
     unsigned int i, j;
@@ -84,8 +84,8 @@ reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
  *      [K info symbols][T parity symbols]
  */
 int
-reed_solomon_encode(struct reed_solomon_encoder *rse,
-		    uint8_t *inbuf, unsigned int len, uint8_t *parity)
+rs_encode(struct reed_solomon_encoder *rse,
+	  uint8_t *inbuf, unsigned int len, uint8_t *parity)
 {
     struct reed_solomon *rs = rse->rs;
     struct galois_field *gf = &rs->gf;
@@ -130,22 +130,22 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
 
 
 void
-reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
-			  struct reed_solomon *rs)
+rs_decoder_init(struct reed_solomon_decoder *rsd,
+		struct reed_solomon *rs)
 {
     rsd->rs = rs;
 #if GF_DYN_ALLOC
     rsd->data = malloc(sizeof(gf_val) * GF_MAX);
 
-    rsd->C = malloc(sizeof(gf_val) * (REED_SOLOMON_MAX_T + 1));
-    rsd->B = malloc(sizeof(gf_val) * (REED_SOLOMON_MAX_T + 1));
-    rsd->Temp = malloc(sizeof(gf_val) * (REED_SOLOMON_MAX_T + 1));
+    rsd->C = malloc(sizeof(gf_val) * (RS_MAX_T + 1));
+    rsd->B = malloc(sizeof(gf_val) * (RS_MAX_T + 1));
+    rsd->Temp = malloc(sizeof(gf_val) * (RS_MAX_T + 1));
 
-    rsd->synd = malloc(sizeof(gf_val) * REED_SOLOMON_MAX_T);
-    rsd->error_pos = malloc(sizeof(unsigned int) * REED_SOLOMON_MAX_ERR);
-    rsd->error_idx = malloc(sizeof(unsigned int) * REED_SOLOMON_MAX_ERR);
+    rsd->synd = malloc(sizeof(gf_val) * RS_MAX_T);
+    rsd->error_pos = malloc(sizeof(unsigned int) * RS_MAX_ERR);
+    rsd->error_idx = malloc(sizeof(unsigned int) * RS_MAX_ERR);
 
-    rsd->O = malloc(sizeof(gf_val) * REED_SOLOMON_MAX_ERR);
+    rsd->O = malloc(sizeof(gf_val) * RS_MAX_ERR);
 #endif
 }
 
@@ -201,8 +201,8 @@ berlekamp_massey(struct reed_solomon *rs,
     unsigned int L = 0;
     unsigned int i, n;
 
-    memset(B + 1, 0, sizeof(gf_val) * REED_SOLOMON_MAX_T);
-    memset(C + 1, 0, sizeof(gf_val) * REED_SOLOMON_MAX_T);
+    memset(B + 1, 0, sizeof(gf_val) * RS_MAX_T);
+    memset(C + 1, 0, sizeof(gf_val) * RS_MAX_T);
 
     C[0] = 1;
     B[0] = 1;
@@ -351,9 +351,9 @@ correct_errors(struct reed_solomon *rs,
  *       info_bits : first K symbols
  * ------------------------------------------------------------------------- */
 int
-reed_solomon_decode(struct reed_solomon_decoder *rsd,
-		    uint8_t *buf, unsigned int len,
-		    unsigned int *err_count)
+rs_decode(struct reed_solomon_decoder *rsd,
+	  uint8_t *buf, unsigned int len,
+	  unsigned int *err_count)
 {
     struct reed_solomon *rs = rsd->rs;
     struct galois_field *gf = &rs->gf;

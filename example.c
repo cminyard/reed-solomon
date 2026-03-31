@@ -7,8 +7,6 @@
 #include "reed_solomon.h"
 #include <fec.h>
 
-#define ERR_COUNT_CHECK 1
-
 static unsigned int
 test_one(unsigned int num_errs,
 	 struct reed_solomon_encoder *rse,
@@ -16,6 +14,7 @@ test_one(unsigned int num_errs,
 {
     unsigned int i;
     uint8_t origbuf[255], buf[255];
+    uint8_t buf2[255];
     bool errpos[255] = { false };
     unsigned int err = 0;
     unsigned int errcount = 0;
@@ -23,23 +22,21 @@ test_one(unsigned int num_errs,
     for (i = 0; i < 223; i++) {
 	buf[i] = rand();
 	origbuf[i] = buf[i];
+	buf2[i] = origbuf[i];
     }
 
     /* Add the parity bytes. */
-    reed_solomon_encode(rse, buf, 223, buf + 223);
-#if 0
-    uint8_t buf2[255];
+    rs_encode(rse, buf, 223, buf + 223);
 
-    for (i = 0; i < 223; i++)
-	buf2[i] = origbuf[i];
-
+    /* Do it with libfec to compare. */
     encode_rs_8(buf2, buf2 + 223, 0);
 
     for (i = 0; i < 255; i++) {
-	if (buf[i] != buf2[i])
-	    printf("Diff(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
+	if (buf[i] != buf2[i]) {
+	    printf("Diff1(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
+	    return 1;
+	}
     }
-#endif
 
 #if 0
     printf("Encoded:");
@@ -59,35 +56,33 @@ test_one(unsigned int num_errs,
 	    continue;
 
 	buf[pos / 8] ^= 1 << (pos % 8);
-#if 0
 	buf2[pos / 8] ^= 1 << (pos % 8);
-#endif
 #if 0
 	printf("Injecting error at byte %u\n", pos / 8);
 #endif
 	errpos[pos / 8] = true;
 	i++;
     }
-    if (reed_solomon_decode(rsd, buf, 255, &errcount)) {
+    if (rs_decode(rsd, buf, 255, &errcount)) {
 	return 1;
     } else {
-#if ERR_COUNT_CHECK
 	if (errcount != num_errs) {
 	    printf("Error count mismatch: %u %u\n", num_errs, errcount);
 	    return 1;
 	}
-#endif
     }
-#if 0
-    printf("errcount = %u\n", errcount);
+
     errcount = decode_rs_8(buf2, NULL, 0, 0);
-    printf("errcount(2) = %u\n", errcount);
+    if (errcount != num_errs) {
+	printf("Bad err count 1\n");
+    }
 
     for (i = 0; i < 223; i++) {
-	if (buf[i] != origbuf[i])
-	    printf("Diff(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
+	if (buf2[i] != origbuf[i]) {
+	    printf("Diff2(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
+	    return 1;
+	}
     }
-#endif
 
     for (i = 0; i < 223; i++) {
 	if (buf[i] != origbuf[i]) {
@@ -145,8 +140,8 @@ main(int argc, char *argv[])
     srand(time(NULL));
 
     reed_solomon_init(&rs, 8, 0x187, 32, 112, 11);
-    reed_solomon_encoder_init(&rse, &rs);
-    reed_solomon_decoder_init(&rsd, &rs);
+    rs_encoder_init(&rse, &rs);
+    rs_decoder_init(&rsd, &rs);
 
     for (i = 0; i < 128; i++) {
 	unsigned int errs = test_loop(loops, i, &rse, &rsd);

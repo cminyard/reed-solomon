@@ -17,7 +17,7 @@
 #include "galois_field.h"
 
 /* Maximum value T may be. */
-#define REED_SOLOMON_MAX_T 32
+#define RS_MAX_T 32
 
 struct reed_solomon {
     unsigned int m;  /* GF size parameter m → GF(2^m) */
@@ -59,8 +59,8 @@ struct reed_solomon_encoder {
 #endif
 };
 
-void reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
-			       struct reed_solomon *rs);
+void rs_encoder_init(struct reed_solomon_encoder *rse,
+		     struct reed_solomon *rs);
 
 /**
  * @brief Systematic Reed–Solomon encoding.
@@ -74,11 +74,11 @@ void reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
  *
  * @return 0 on success, non-zero on error.
  */
-int reed_solomon_encode(struct reed_solomon_encoder *rse,
-			uint8_t *buf, unsigned int len, uint8_t *parity);
+int rs_encode(struct reed_solomon_encoder *rse,
+	      uint8_t *buf, unsigned int len, uint8_t *parity);
 
 /* We can process up to T/2 errors.  More than that we ignore. */
-#define REED_SOLOMON_MAX_ERR (REED_SOLOMON_MAX_T / 2)
+#define RS_MAX_ERR (RS_MAX_T / 2)
 
 struct reed_solomon_decoder {
     struct reed_solomon *rs;
@@ -103,20 +103,20 @@ struct reed_solomon_decoder {
     /* gf_val recv_sym_p[Np]; */
     gf_val data[GF_MAX];
 
-    gf_val C[REED_SOLOMON_MAX_T + 1]; /* current polynomial */
-    gf_val B[REED_SOLOMON_MAX_T + 1]; /* previous polynomial */
-    gf_val Temp[REED_SOLOMON_MAX_T + 1];
+    gf_val C[RS_MAX_T + 1]; /* current polynomial */
+    gf_val B[RS_MAX_T + 1]; /* previous polynomial */
+    gf_val Temp[RS_MAX_T + 1];
 
-    gf_val synd[REED_SOLOMON_MAX_T];
-    unsigned int error_idx[REED_SOLOMON_MAX_ERR];
-    unsigned int error_pos[REED_SOLOMON_MAX_ERR];
+    gf_val synd[RS_MAX_T];
+    unsigned int error_idx[RS_MAX_ERR];
+    unsigned int error_pos[RS_MAX_ERR];
 
-    gf_val O[REED_SOLOMON_MAX_ERR];
+    gf_val O[RS_MAX_ERR];
 #endif
 };
 
-void reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
-			       struct reed_solomon *rs);
+void rs_decoder_init(struct reed_solomon_decoder *rsd,
+		     struct reed_solomon *rs);
 
 /**
  * @brief Decode a shortened systematic Reed–Solomon codeword.
@@ -131,8 +131,8 @@ void reed_solomon_decoder_init(struct reed_solomon_decoder *rsd,
  *
  * @return 0 on success, non-zero on error.
  */
-int reed_solomon_decode(struct reed_solomon_decoder *rsd,
-			uint8_t *buf, unsigned int len,
-			unsigned int *err_count);
+int rs_decode(struct reed_solomon_decoder *rsd,
+	      uint8_t *buf, unsigned int len,
+	      unsigned int *err_count);
 
 #endif /* REED_SOLOMON_H */

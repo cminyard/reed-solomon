@@ -10,7 +10,7 @@ ARCH = -march=native
 CFLAGS = -g -Wall -O3 -DCONVCODE_TESTS -DDO_SIMD=$(DO_SIMD) $(ARCH)
 
 example: example.o reed_solomon.o galois_field.o
-	gcc $(CFLAGS) -o $@ $^ ../libfec/libfec.a
+	gcc $(CFLAGS) -o $@ $^ -lfec
 
 example.o: example.c reed_solomon.h galois_field.h
 
