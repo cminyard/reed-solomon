@@ -167,18 +167,10 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
 	S[i] = e[0];
 
     for (i = 1; i < N; i++) {
-	for (j = 0; j < rs->T; j++) {
-	    if (S[j] == 0) {
-		S[j] = e[i];
-	    } else {
-		unsigned int tmp;
-
-		tmp = gf->log[S[j]] + (rs->fcr + j) * rs->prim;
-		tmp %= gf->Np;
-		tmp = gf->exp[tmp];
-		S[j] = gf_add(e[i], tmp);
-	    }
-	}
+	for (j = 0; j < rs->T; j++)
+	    S[j] = gf_add(e[i], gf_mul(gf, S[j],
+				       gf->exp[((rs->fcr + j)
+						* rs->prim) % gf->Np]));
     }
 
     for (i = 0; i < rs->T; i++) {
@@ -208,57 +200,35 @@ berlekamp_massey(struct reed_solomon *rs,
     unsigned int L = 0;
     unsigned int i, n;
 
-    memset(B, 0, sizeof(gf_val) * (REED_SOLOMON_MAX_T + 1));
-    memset(C, 0, sizeof(gf_val) * (REED_SOLOMON_MAX_T + 1));
+    memset(B + 1, 0, sizeof(gf_val) * REED_SOLOMON_MAX_T);
+    memset(C + 1, 0, sizeof(gf_val) * REED_SOLOMON_MAX_T);
 
     C[0] = 1;
-
-    for (i = 0; i <= rs->T; i++)
-	B[i] = gf->log[C[i]];
+    B[0] = 1;
 
     for (n = 1; n <= rs->T; n++) {
 	gf_val d = 0;
 
-	for (i = 0; i < n; i++) {
-	    if (C[i] != 0 && S[n - i - 1] != 0) {
-		gf_val t = gf_mul(gf, C[i], S[n - i - 1]);
-
-		d = gf_add(d, t);
-	    }
-	}
+	for (i = 0; i < n; i++)
+	    d = gf_add(d, gf_mul(gf, C[i], S[n - i - 1]));
 
 	if (d == 0) {
 	    memmove(B + 1, B, rs->T * sizeof(B[0]));
-	    B[0] = gf->Np;
+	    B[0] = 0;
 	} else {
-	    d = gf->log[d];
-
 	    Temp[0] = C[0];
-	    for (i = 0; i < rs->T; i++) {
-		if (B[i] != gf->Np) {
-		    unsigned int tmp;
-
-		    tmp = gf->exp[(d + B[i]) % gf->Np];
-		    Temp[i + 1] = gf_add(C[i + 1], tmp);
-		} else {
-		    Temp[i + 1] = C[i + 1];
-		}
-	    }
+	    for (i = 0; i < rs->T; i++)
+		    Temp[i + 1] = gf_add(C[i + 1], gf_mul(gf, d, B[i]));
 
 	    if (2 * L <= n - 1) {
 		/* Update B(x) ← previous C(x) */
-		for (i = 0; i <= rs->T; i++) {
-		    if (C[i] == 0) {
-			B[i] = gf->Np;
-		    } else {
-			B[i] = (gf->log[C[i]] - d + gf->Np) % gf->Np;
-		    }
-		}
+		for (i = 0; i <= rs->T; i++)
+		    B[i] = gf_div(gf, C[i], d);
 
 		L = n - L;
 	    } else {
 		memmove(B + 1, B, rs->T * sizeof(B[0]));
-		B[0] = gf->Np;
+		B[0] = 0;
 	    }
 
 	    for (i = 0; i <= rs->T; i++)
