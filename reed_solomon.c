@@ -34,6 +34,7 @@ void
 reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
 			  struct reed_solomon *rs)
 {
+    struct galois_field *gf = &rs->gf;
     unsigned int i, j;
     gf_val tmp[GF_MAX];
     unsigned int root;
@@ -65,14 +66,14 @@ reed_solomon_encoder_init(struct reed_solomon_encoder *rse,
 	    if (rse->generator[j] != 0) {
 		unsigned int term;
 
-		term = (rs->gf.log[tmp[j]] + root) % rs->gf.Np;
-		term = rs->gf.exp[term];
+		term = (gf->log[tmp[j]] + root) % gf->Np;
+		term = gf->exp[term];
 		rse->generator[j] = gf_add(tmp[j - 1], term);
 	    } else {
 		rse->generator[j] = rse->generator[j - 1];
 	    }
 	}
-	rse->generator[0] = rs->gf.exp[(rs->gf.log[tmp[0]] + root) % rs->gf.Np];
+	rse->generator[0] = gf->exp[(gf->log[tmp[0]] + root) % gf->Np];
     }
 }
 
@@ -90,7 +91,7 @@ reed_solomon_encode(struct reed_solomon_encoder *rse,
     struct galois_field *gf = &rs->gf;
     unsigned int i, j;
 
-    if (len > rs->gf.Np - rs->T)
+    if (len > gf->Np - rs->T)
 	return 1;
 
     /* -------------------------------------------------------------
@@ -168,9 +169,9 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
 
     for (i = 1; i < N; i++) {
 	for (j = 0; j < rs->T; j++)
-	    S[j] = gf_add(e[i], gf_mul(gf, S[j],
-				       gf->exp[((rs->fcr + j)
-						* rs->prim) % gf->Np]));
+	    S[j] = gf_add(e[i],
+			  gf_mul(gf, S[j],
+				 gf_pow(gf, gf->exp[rs->fcr + j], rs->prim)));
     }
 
     for (i = 0; i < rs->T; i++) {
@@ -259,20 +260,16 @@ chien_search(struct reed_solomon *rs, unsigned int L,
     for (i = 0; i <= rs->T; i++) {
 	if (C[i] != 0)
 	    d = i;
-	C[i] = gf->log[C[i]];
+	Temp[i] = C[i];
     }
 
-    for (i = 1; i <= rs->T; i++)
-	Temp[i] = C[i];
     k = rs->iprim - 1;
     for (i = 1; i <= gf->Np; i++) {
 	unsigned int sum = 1;
 
 	for (j = d; j > 0; j--) {
-	    if (Temp[j] != gf->Np) {
-		Temp[j] = (Temp[j] + j) % gf->Np;
-		sum = gf_add(sum, gf->exp[Temp[j]]);
-	    }
+	    Temp[j] = gf_mul(gf, Temp[j], gf->exp[j]);
+	    sum = gf_add(sum, Temp[j]);
 	}
 
 	if (sum == 0) {
@@ -309,27 +306,25 @@ correct_errors(struct reed_solomon *rs,
 
     o = err_cnt - 1;
     for (i = 0; i <= o; i++) {
-	unsigned int tmp = 0;
-
+	O[i] = 0;
 	for (j = i; ; j--) {
-	    if (S[i - j] != 0 && C[j] != gf->Np)
-		tmp ^= gf->exp[(gf->log[S[i - j]] + C[j]) % gf->Np];
+	    O[i] = gf_add(O[i], gf_mul(gf, S[i - j], C[j]));
 	    if (j == 0)
 		break;
 	}
-	O[i] = gf->log[tmp];
     }
 
     for (i = err_cnt - 1; ; i--) {
 	unsigned int tmp = 0, tmp2, d;
 
 	for (j = o; ; j--) {
-	    if (O[j] != gf->Np)
-		tmp ^= gf->exp[(O[j] + j * err_idx[i]) % gf->Np];
+	    if (O[j] != 0)
+		tmp = gf_add(tmp, gf_mul(gf, O[j],
+					 gf_pow(gf, gf->exp[j], err_idx[i])));
 	    if (j == 0)
 		break;
 	}
-	tmp2 = gf->exp[(err_idx[i] * (rs->fcr - 1) + gf->Np) % gf->Np];
+	tmp2 = gf_pow(gf, gf->exp[err_idx[i]], rs->fcr - 1);
 
 	d = 0;
 	if (err_cnt < rs->T - 1)
@@ -337,15 +332,15 @@ correct_errors(struct reed_solomon *rs,
 	else
 	    j = rs->T - 1;
 	for (j = j & ~1; ; j -= 2) {
-	    if (C[j + 1] != gf->Np)
-		d ^= gf->exp[(C[j + 1] + j * err_idx[i]) % gf->Np];
+	    if (C[j + 1] != 0)
+		d = gf_add(d, gf_mul(gf, C[j + 1],
+				     gf_pow(gf, gf->exp[j], err_idx[i])));
 	    if (j < 2)
 		break;
 	}
 
-	if (tmp != 0) {
-	    e[err_pos[i]] ^= gf->exp[(gf->log[tmp] + gf->log[tmp2] + gf->Np - gf->log[d]) % gf->Np];
-	}
+	if (tmp != 0)
+	    e[err_pos[i]] ^= gf_div(gf, gf_mul(gf, tmp, tmp2), d);
 
 	if (i == 0)
 	    break;
@@ -369,17 +364,18 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 		    unsigned int *err_count)
 {
     struct reed_solomon *rs = rsd->rs;
+    struct galois_field *gf = &rs->gf;
     unsigned int i;
     unsigned int count = 0;
 
-    if (len > rs->gf.Np)
+    if (len > gf->Np)
 	return 1;
     if (len <= rs->T)
 	return 1;
     rsd->N = len;
     rsd->K = len - rs->T;
     /* Number of shortened symbols */
-    rsd->S = rs->gf.Np - rsd->N;
+    rsd->S = gf->Np - rsd->N;
 
     /* FIXME = optimize if S == 0. */
     /* Build parent-length buffer */
