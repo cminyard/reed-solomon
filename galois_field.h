@@ -150,6 +150,7 @@ galois_field_inv(struct galois_field *gf, galois_field_val a)
  *
  * @return 0 on success, non-zero on failure.
  */
-int galois_field_init(struct galois_field *gf, int m);
+int galois_field_init(struct galois_field *gf,
+		      unsigned int m, unsigned int poly);
 
 #endif /* GALOIS_FIELD_H */

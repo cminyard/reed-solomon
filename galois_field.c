@@ -15,25 +15,13 @@
 
 #include "galois_field.h"
 
-/* Primitive polynomials for m = 1..8 (CCSDS/NASA compatible) */
-static const uint16_t primitive_poly[9] = {
-    0x00, /* unused (m=0) */
-    0x03, /* m=1 */
-    0x07, /* m=2 */
-    0x0B, /* m=3 */
-    0x13, /* m=4 */
-    0x25, /* m=5 */
-    0x43, /* m=6 */
-    0x89, /* m=7 */
-    0x11D /* m=8 (used for RS(255,223), GF(256)) */
-};
-
 /* -------------------------------------------------------------------------
- * Initialize GF(2^m) and build generator polynomial g(x)
+ * Initialize GF(2^m)
  * ------------------------------------------------------------------------- */
-int galois_field_init(struct galois_field *gf, int m)
+int galois_field_init(struct galois_field *gf,
+		      unsigned int m, unsigned int poly)
 {
-    uint16_t prim, x;
+    uint16_t x;
     unsigned int i;
 
     /* Field size (2^m - 1) */
@@ -44,19 +32,16 @@ int galois_field_init(struct galois_field *gf, int m)
     gf->log = malloc(sizeof(galois_field_val) * GALOIS_FIELD_MAX);
 #endif
 
-    /* Select primitive polynomial */
-    prim = primitive_poly[m];
-
     /* Build exp/log tables */
     x = 1;
-    gf->log[0] = 0;
+    gf->log[0] = 255;
     for (i = 0; i < gf->Np; i++) {
 	gf->exp[i] = x;
 	gf->log[x] = i;
 
 	x <<= 1;
 	if (x & (1u << m))
-	    x ^= prim;
+	    x ^= poly;
     }
     /*
      * gf->exp[i] is one larger than necessary to avoid having to do a mod

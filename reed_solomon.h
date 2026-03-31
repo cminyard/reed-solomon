@@ -23,6 +23,10 @@ struct reed_solomon {
     unsigned int m;  /* GF size parameter m → GF(2^m) */
     unsigned int T;  /* Number of parity symbols (generator degree) */
 
+    unsigned int prim;
+    unsigned int iprim;
+    unsigned int fcr;
+
     struct galois_field gf;
 
     /* FIXME - allocate these based on m. */
@@ -49,7 +53,9 @@ struct reed_solomon {
  *
  * @return 0 on success, non-zero on failure.
  */
-int reed_solomon_init(struct reed_solomon *rs, unsigned int m, unsigned int T);
+int reed_solomon_init(struct reed_solomon *rs, unsigned int m,
+		      unsigned int gfpoly, unsigned int T,
+		      unsigned int fcs, unsigned int prim);
 
 struct reed_solomon_encoder {
     struct reed_solomon *rs;
@@ -95,12 +101,11 @@ struct reed_solomon_decoder {
     galois_field_val *recv_sym_p;
 
     galois_field_val *synd;
-    galois_field_val *sigma;
     unsigned int *error_pos;
 #else
     galois_field_val C[GALOIS_FIELD_MAX]; /* current polynomial */
     galois_field_val B[GALOIS_FIELD_MAX]; /* previous polynomial */
-    galois_field_val Temp[GALOIS_FIELD_MAX];
+    galois_field_val Temp[GALOIS_FIELD_MAX + 1];
 
     galois_field_val A[REED_SOLOMON_MAX_ERR][REED_SOLOMON_MAX_ERR];
     galois_field_val e[REED_SOLOMON_MAX_ERR];
@@ -109,7 +114,6 @@ struct reed_solomon_decoder {
     galois_field_val recv_sym_p[GALOIS_FIELD_MAX];
 
     galois_field_val synd[REED_SOLOMON_MAX_T];
-    galois_field_val sigma[REED_SOLOMON_MAX_ERR + 1];
     unsigned int error_pos[REED_SOLOMON_MAX_ERR];
 #endif
 };

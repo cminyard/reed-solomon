@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include "reed_solomon.h"
+#include <fec.h>
 
 #define ERR_COUNT_CHECK 1
 
@@ -26,6 +27,19 @@ test_one(unsigned int num_errs,
 
     /* Add the parity bytes. */
     reed_solomon_encode(rse, buf, 223, buf + 223);
+#if 1
+    uint8_t buf2[255];
+
+    for (i = 0; i < 223; i++)
+	buf2[i] = origbuf[i];
+
+    encode_rs_8(buf2, buf2 + 223, 0);
+
+    for (i = 0; i < 255; i++) {
+	if (buf[i] != buf2[i])
+	    printf("Diff(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
+    }
+#endif
 
 #if 0
     printf("Encoded:");
@@ -45,6 +59,10 @@ test_one(unsigned int num_errs,
 	    continue;
 
 	buf[pos / 8] ^= 1 << (pos % 8);
+#if ERR_COUNT_CHECK
+	buf2[pos / 8] ^= 1 << (pos % 8);
+	printf("Injecting error at byte %u\n", pos / 8);
+#endif
 	errpos[pos / 8] = true;
 	i++;
     }
@@ -52,6 +70,16 @@ test_one(unsigned int num_errs,
 #if ERR_COUNT_CHECK
     if (errcount != num_errs)
 	printf("Error count mismatch: %u %u\n", num_errs, errcount);
+#endif
+#if 1
+    printf("errcount = %u\n", errcount);
+    errcount = decode_rs_8(buf2, NULL, 0, 0);
+    printf("errcount(2) = %u\n", errcount);
+
+    for (i = 0; i < 223; i++) {
+	if (buf[i] != origbuf[i])
+	    printf("Diff(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
+    }
 #endif
 
     for (i = 0; i < 223; i++) {
@@ -108,7 +136,7 @@ main(int argc, char *argv[])
     }
     srand(time(NULL));
 
-    reed_solomon_init(&rs, 8, 32);
+    reed_solomon_init(&rs, 8, 0x187, 32, 112, 11);
     reed_solomon_encoder_init(&rse, &rs);
     reed_solomon_decoder_init(&rsd, &rs);
 
