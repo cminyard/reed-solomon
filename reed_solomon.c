@@ -357,6 +357,7 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 {
     struct reed_solomon *rs = rsd->rs;
     struct galois_field *gf = &rs->gf;
+    uint8_t *data;
     unsigned int i;
     unsigned int count = 0;
 
@@ -369,16 +370,21 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
     /* Number of shortened symbols */
     rsd->S = gf->Np - rsd->N;
 
-    /* FIXME = optimize if S == 0. */
-    /* Build parent-length buffer */
-    for (i = 0; i < rsd->S; i++)
-	rsd->data[i] = 0;
+    if (rsd->S == 0) {
+	data = buf;
+    } else {
+	data = rsd->data;
 
-    for (i = 0; i < rsd->N; i++)
-	rsd->data[rsd->S + i] = buf[i];
+	/* Build parent-length buffer */
+	for (i = 0; i < rsd->S; i++)
+	    data[i] = 0;
+
+	for (i = 0; i < rsd->N; i++)
+	    data[rsd->S + i] = buf[i];
+    }
 
     /* Syndromes */
-    count = compute_syndromes(rs, rsd->N, rsd->data, rsd->synd);
+    count = compute_syndromes(rs, rsd->N, data, rsd->synd);
 
     if (count != 0) {
 	/* BM → locator polynomial */
@@ -392,7 +398,7 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 
 	/* Correct */
 	if (count > 0)
-	    correct_errors(rs, rsd->data, rsd->synd, rsd->C, rsd->O,
+	    correct_errors(rs, data, rsd->synd, rsd->C, rsd->O,
 			   rsd->error_idx, rsd->error_pos, count);
     }
 
@@ -402,8 +408,10 @@ reed_solomon_decode(struct reed_solomon_decoder *rsd,
 	return 0;
 
     /* Output K information symbols */
-    for (i = 0; i < rsd->K; i++)
-	buf[i] = rsd->data[rsd->S + i];
+    if (rsd->S != 0) {
+	for (i = 0; i < rsd->K; i++)
+	    buf[i] = data[rsd->S + i];
+    }
 
     return 0;
 }
