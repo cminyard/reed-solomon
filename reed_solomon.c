@@ -81,7 +81,8 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
 #define RS_T rs->T
 #define GF_NP gf->Np
 #define GF_EXP gf->exp
-#define GF_LOG gf->log
+#define GF_LOG(x) gf->log[x]
+#define GF_MUL_LL(d, x, y) gf_mul_ll(d, x, y)
 #define RS_LEN len
 #define RS_USE_GF 1
 #define RS_GENERATOR rse->generator
@@ -100,6 +101,7 @@ rs_encode(struct reed_solomon_encoder *rse, \
 #undef GF_NP
 #undef GF_EXP
 #undef GF_LOG
+#undef GF_MUL_LL
 #undef RS_LEN
 #undef RS_USE_GF
 #undef RS_GENERATOR
@@ -109,7 +111,8 @@ rs_encode(struct reed_solomon_encoder *rse, \
 #define RS_T 32
 #define GF_NP 255
 #define GF_EXP CCSDS_exp
-#define GF_LOG CCSDS_log
+#define GF_LOG(x) CCSDS_log[x]
+#define GF_MUL_LL(d, x, y) GF_EXP[do_mod(x + y)]
 #define RS_GENERATOR CCSDS_gen
 #define RS_LEN len
 #define RS_USE_GF 0
@@ -211,6 +214,7 @@ do_mod(unsigned int val)
 #undef GF_NP
 #undef GF_EXP
 #undef GF_LOG
+#undef GF_MUL_LL
 #undef RS_LEN
 #undef RS_USE_GF
 #undef RS_GENERATOR
