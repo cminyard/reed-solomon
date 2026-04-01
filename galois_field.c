@@ -34,7 +34,7 @@ int galois_field_init(struct galois_field *gf,
 
     /* Build exp/log tables */
     x = 1;
-    gf->log[0] = 255;
+    gf->log[0] = gf->Np;
     for (i = 0; i < gf->Np; i++) {
 	gf->exp[i] = x;
 	gf->log[x] = i;

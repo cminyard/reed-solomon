@@ -165,8 +165,11 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
     for (i = 0; i < rs->T; i++) {
 	if (S[i])
 	    count++;
-	/* Put S into log format so it doesn't have to be recomputed when used */
-	S[i] = gf_log(gf, S[i]);
+	/*
+	 * Put S into log format so it doesn't have to be recomputed
+	 * when used.  It doesn't matter if S[i] is zero upon entry.
+	 */
+	S[i] = gf_log_nc(gf, S[i]);
     }
 
     return count;
@@ -199,8 +202,11 @@ berlekamp_massey(struct reed_solomon *rs,
 
     memset(C + 1, 0, sizeof(gf_sym) * rs->T);
     C[0] = 1;
-    memset(B + 1, 0, sizeof(gf_sym) * rs->T);
-    B[0] = 1;
+
+    /* B array is in log format. */
+    for (i = 0; i <= rs->T; i++)
+	B[i] = gf->Np;
+    B[0] = gf_log_nc(gf, 1);
 
     for (n = 1; n <= rs->T; n++) {
 	gf_sym d = 0;
@@ -211,20 +217,21 @@ berlekamp_massey(struct reed_solomon *rs,
 
 	if (d == 0) {
 	    B--;
-	    B[0] = 0;
+	    B[0] = gf->Np;
 	} else {
+	    d = gf_log_nc(gf, d);
 	    Temp[0] = C[0];
 	    for (i = 0; i < rs->T; i++)
-		Temp[i + 1] = gf_add(C[i + 1], gf_mul(gf, d, B[i]));
+		Temp[i + 1] = gf_add(C[i + 1], gf_mul_ll(gf, d, B[i]));
 
 	    if (2 * L <= n - 1) {
 		for (i = 0; i <= rs->T; i++)
-		    B[i] = gf_div(gf, C[i], d);
+		    B[i] = gf_div_el_l(gf, C[i], d);
 
 		L = n - L;
 	    } else {
 		B--;
-		B[0] = 0;
+		B[0] = gf->Np;
 	    }
 
 	    memcpy(C, Temp, rs->T * sizeof(gf_sym));
@@ -254,6 +261,8 @@ chien_search(struct reed_solomon *rs, unsigned int L,
     for (i = 0; i <= rs->T; i++) {
 	if (C[i] != 0)
 	    d = i;
+	/* Convert C[i] to log format for faster processing. */
+	C[i] = gf_log_nc(gf, C[i]);
 	Temp[i] = C[i];
     }
 
@@ -262,8 +271,8 @@ chien_search(struct reed_solomon *rs, unsigned int L,
 	unsigned int sum = 1;
 
 	for (j = d; j > 0; j--) {
-	    Temp[j] = gf_mul(gf, Temp[j], gf->exp[j]);
-	    sum = gf_add(sum, Temp[j]);
+	    Temp[j] = gf_mul_ll_l(gf, Temp[j], j);
+	    sum = gf_add(sum, gf_exp(gf, Temp[j]));
 	}
 
 	if (sum == 0) {
@@ -303,7 +312,9 @@ correct_errors(struct reed_solomon *rs,
 	O[i] = 0;
 	for (j = 0; j <= i; j++)
 	    /* O[i] += S[i - j] * C[j] */
-	    O[i] = gf_add(O[i], gf_mul_le(gf, S[i - j], C[j]));
+	    O[i] = gf_add(O[i], gf_mul_ll(gf, S[i - j], C[j]));
+	/* Convert O[i] to log format for faster processing. */
+	O[i] = gf_log(gf, O[i]);
     }
 
     for (i = 0; i < err_cnt; i++) {
@@ -311,8 +322,8 @@ correct_errors(struct reed_solomon *rs,
 
 	for (j = 0; j <= o; j++)
 	    /* tmp += O[j] * j ^ err_idx[i] */
-	    tmp = gf_add(tmp, gf_mul(gf, O[j],
-				     gf_pow_l(gf, j, err_idx[i])));
+	    tmp = gf_add(tmp, gf_mul_ll(gf, O[j],
+					gf_pow_l_l(gf, j, err_idx[i])));
 	/* tmp2 = err_index[i] ^ (fcr - 1) */
 	tmp2 = gf_pow_l(gf, err_idx[i], rs->fcr - 1);
 
@@ -323,8 +334,8 @@ correct_errors(struct reed_solomon *rs,
 	    j = rs->T - 1;
 	for (j = j & ~1; ; j -= 2) {
 	    /* d += C[j + 1] * j ^ err_idx[i] */
-	    d = gf_add(d, gf_mul(gf, C[j + 1],
-				 gf_pow_l(gf, j, err_idx[i])));
+	    d = gf_add(d, gf_mul_ll(gf, C[j + 1],
+				    gf_pow_l_l(gf, j, err_idx[i])));
 	    if (j < 2)
 		break;
 	}
