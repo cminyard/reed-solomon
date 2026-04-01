@@ -77,51 +77,25 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
 	rse->generator[i] = gf_log_nc(gf, rse->generator[i]);
 }
 
-
-#define RS_T rs->T
-#define GF_NP gf->Np
-#define GF_EXP gf->exp
-#define GF_LOG(x) gf->log[x]
-#define GF_MUL_LL(d, x, y) gf_mul_ll(d, x, y)
-#define RS_LEN len
-#define RS_USE_GF 1
-#define RS_GENERATOR rse->generator
-#define RS_ENC_START() \
-int \
-rs_encode(struct reed_solomon_encoder *rse, \
-	  uint8_t *inbuf, unsigned int len, uint8_t *parity) \
-{ \
-    struct reed_solomon *rs = rse->rs; \
-    struct galois_field *gf = &rs->gf;
-#define RS_ENC_END \
-}
-#include "rs_encode.h"
-
-#undef RS_T
-#undef GF_NP
-#undef GF_EXP
-#undef GF_LOG
-#undef GF_MUL_LL
-#undef RS_LEN
-#undef RS_USE_GF
-#undef RS_GENERATOR
-#undef RS_ENC_START
-#undef RS_ENC_END
-
-#define RS_T 32
-#define GF_NP 255
-#define GF_EXP CCSDS_exp
-#define GF_LOG(x) CCSDS_log[x]
-#define GF_MUL_LL(d, x, y) GF_EXP[do_mod(x + y)]
-#define RS_GENERATOR CCSDS_gen
-#define RS_LEN len
-#define RS_USE_GF 0
-#define RS_ENC_START() \
-int \
-rs_encode_8(uint8_t *inbuf, unsigned int len, uint8_t *parity)	\
+void
+rs_decoder_init(struct reed_solomon_decoder *rsd,
+		struct reed_solomon *rs)
 {
-#define RS_ENC_END \
+    rsd->rs = rs;
+#if GF_DYN_ALLOC
+    rsd->C = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
+    rsd->B = malloc(sizeof(gf_sym) * (2 * RS_MAX_T + 1));
+    rsd->Temp = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
+
+    rsd->synd = malloc(sizeof(gf_sym) * RS_MAX_T);
+    rsd->error_pos = malloc(sizeof(unsigned int) * RS_MAX_ERR);
+    rsd->error_idx = malloc(sizeof(unsigned int) * RS_MAX_ERR);
+
+    rsd->O = malloc(sizeof(gf_sym) * RS_MAX_ERR);
+#endif
 }
+
+/* Pre-computed parameters for CCSDS version. */
 const uint8_t CCSDS_exp[] = {
       1,   2,   4,   8,  16,  32,  64, 128,
     135, 137, 149, 173, 221,  61, 122, 244,
@@ -201,7 +175,7 @@ const uint8_t CCSDS_gen[] = {
 };
 
 static GF_FORCE_INLINE gf_sym
-do_mod(unsigned int val)
+CCSDS_do_mod(unsigned int val)
 {
     while (val >= 255) {
 	val -= 255;
@@ -209,352 +183,120 @@ do_mod(unsigned int val)
     }
     return val;
 }
+
+/* Define the general-purpose Reed-Solomon coder. */
+#define RS_T rs->T
+#define GF_NP rs->gf.Np
+#define GF_EXP(x) gf_exp((&rs->gf), x)
+#define GF_LOG(x) gf_log_nc((&rs->gf), x)
+#define GF_MUL(x, y) gf_mul((&rs->gf), x, y)
+#define GF_MUL_LL(x, y) gf_mul_ll((&rs->gf), x, y)
+#define GF_MUL_EL(x, y) gf_mul_el((&rs->gf), x, y)
+#define GF_MUL_LL_L(x, y) gf_mul_ll_l((&rs->gf), x, y)
+#define GF_DIV(x, y) gf_div((&rs->gf), x, y)
+#define GF_DIV_EL_L(x, y) gf_div_el_l((&rs->gf), x, y)
+#define GF_POW_L(x, y) gf_pow_l((&rs->gf), x, y)
+#define GF_POW_L_L(x, y) gf_pow_l_l((&rs->gf), x, y)
+#define RS_LEN len
+#define RS_USE_GF 1
+#define RS_GENERATOR rse->generator
+#define RS_ENC_START() \
+int \
+rs_encode(struct reed_solomon_encoder *rse, \
+	  uint8_t *inbuf, unsigned int len, uint8_t *parity) \
+{ \
+    struct reed_solomon *rs = rse->rs;
+#define RS_ENC_END \
+}
+#define RS_DEC_START() \
+int \
+rs_decode(struct reed_solomon_decoder *rsd, \
+	  uint8_t *data, unsigned int len, \
+	  unsigned int *err_count) \
+{ \
+    struct reed_solomon *rs = rsd->rs;
+#define RS_DEC_END \
+}
+#define RS_NAME(x) x
 #include "rs_encode.h"
+#include "rs_decode.h"
+
 #undef RS_T
 #undef GF_NP
 #undef GF_EXP
 #undef GF_LOG
+#undef GF_MUL
 #undef GF_MUL_LL
+#undef GF_MUL_EL
+#undef GF_MUL_LE
+#undef GF_MUL_LL_L
+#undef GF_DIV
+#undef GF_DIV_EL_L
+#undef GF_POW_L_L
+#undef GF_POW_L
 #undef RS_LEN
 #undef RS_USE_GF
 #undef RS_GENERATOR
 #undef RS_ENC_START
 #undef RS_ENC_END
+#undef RS_DEC_START
+#undef RS_DEC_END
+#undef RS_NAME
 
-void
-rs_decoder_init(struct reed_solomon_decoder *rsd,
-		struct reed_solomon *rs)
+/* Define the high-performance CCSDS Reed-Solomon coder. */
+#define RS_T 32
+#define GF_NP 255
+#define do_mod(x) CCSDS_do_mod(x)
+#define GF_EXP(x) (((x) == GF_NP) ? 0 : CCSDS_exp[x])
+#define GF_LOG(x) CCSDS_log[x]
+#define GF_MUL(x, y) (((x) == 0 || (y) == 0) ? 0 : GF_EXP(do_mod(GF_LOG(x) + GF_LOG(y))))
+#define GF_MUL_LL(x, y) (((x) == GF_NP || (y) == GF_NP) ? 0 : GF_EXP(do_mod(x + y)))
+#define GF_MUL_EL(x, y) (((x) == 0 || (y) == GF_NP) ? 0 : GF_EXP(do_mod(GF_LOG(x) + y)))
+#define GF_MUL_LL_L(x, y) (((x) == GF_NP || (y) == GF_NP) ? GF_NP : do_mod(x + y))
+
+#define GF_DIV(x, y) (((x) == 0) ? 0 : GF_EXP(do_mod(GF_LOG(x) - GF_LOG(y) + GF_NP)))
+#define GF_DIV_EL_L(x, y) (((x) == 0) ? GF_NP : do_mod(GF_LOG(x) - (y) + GF_NP))
+#define GF_POW_L(x, y) ((x) == GF_NP ? 0 : GF_EXP(do_mod(((x) * (y)) % GF_NP + GF_NP)))
+#define GF_POW_L_L(x, y) ((x) == GF_NP ? GF_NP : do_mod(((x) * (y)) % GF_NP + GF_NP))
+#define RS_GENERATOR CCSDS_gen
+#define RS_LEN len
+#define RS_USE_GF 0
+#define RS_ENC_START() \
+int \
+rs_encode_8(uint8_t *inbuf, unsigned int len, uint8_t *parity)	\
 {
-    rsd->rs = rs;
-#if GF_DYN_ALLOC
-    rsd->C = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
-    rsd->B = malloc(sizeof(gf_sym) * (2 * RS_MAX_T + 1));
-    rsd->Temp = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
-
-    rsd->synd = malloc(sizeof(gf_sym) * RS_MAX_T);
-    rsd->error_pos = malloc(sizeof(unsigned int) * RS_MAX_ERR);
-    rsd->error_idx = malloc(sizeof(unsigned int) * RS_MAX_ERR);
-
-    rsd->O = malloc(sizeof(gf_sym) * RS_MAX_ERR);
-#endif
+#define RS_ENC_END \
 }
-
-/* -------------------------------------------------------------------------
- * 1) Syndrome computation (on parent length Np)
- *
- *     S_i = Σ_{j=0}^{Np-1} r_j α^{(i+1)*j},   for i = 0..T-1
- *
- * Returns the number of non-zero syndromes.
- * Zero syndromes = no errors.
- * ------------------------------------------------------------------------- */
-static GF_FORCE_INLINE unsigned int
-compute_syndromes(struct reed_solomon *rs, unsigned int pad,
-		  const gf_sym *e, gf_sym *S)
-{
-    struct galois_field *gf = &rs->gf;
-    unsigned int i, j, count = 0;
-
-    if (pad > 0) {
-	memset(S, 0, rs->T * sizeof(gf_sym));
-	for (i = 1; i < pad; i++) {
-	    for (j = 0; j < rs->T; j++) {
-		if (S[j] == 0) {
-		    S[j] = 0;
-		} else {
-		    /* S[j] = (S[j] * (rs->fcr + j) ^ rs->prim) */
-		    S[j] = gf->exp[(gf->log[S[j]]
-				    + (rs->fcr + j) * rs->prim) % gf->Np];
-		    /*
-		     * Direct calculation above is much faster than the below
-		     * because it doesn't do all the error checks.
-		     *
-		     * S[j] = gf_mul_el(gf, S[j],
-		     *		    gf_pow_l_l(gf, rs->fcr + j, rs->prim)));
-		     */
-		}
-	    }
-	}
-    } else {
-	for (i = 0; i < rs->T; i++)
-	    S[i] = e[0];
-	i = 1;
-    }
-
-    for (; i < gf->Np; i++) {
-	for (j = 0; j < rs->T; j++) {
-	    if (S[j] == 0) {
-		S[j] = e[i - pad];
-	    } else {
-		/* S[j] = e[i] + (S[j] * (rs->fcr + j) ^ rs->prim) */
-		S[j] = e[i - pad] ^ gf->exp[(gf->log[S[j]]
-				       + (rs->fcr + j) * rs->prim) % gf->Np];
-		/*
-		 * Direct calculation above is much faster than the below
-		 * because it doesn't do all the error checks.
-		 *
-		 * S[j] = gf_add(e[i = pad],
-		 *	      gf_mul_el(gf, S[j],
-		 *			gf_pow_l_l(gf, rs->fcr + j, rs->prim)));
-		 */
-	    }
-	}
-    }
-
-    for (i = 0; i < rs->T; i++) {
-	if (S[i])
-	    count++;
-    }
-
-    return count;
+#define RS_DEC_START() \
+int \
+rs_decode_8(uint8_t *data, unsigned int len, \
+	    unsigned int *err_count)	     \
+{ \
+    struct reed_solomon rs_data; \
+    struct reed_solomon *rs = &rs_data; \
+    struct reed_solomon_decoder rsd_data = { .rs = rs }; \
+    struct reed_solomon_decoder *rsd = &rsd_data; \
+    reed_solomon_init(rs, 8, 0x187, 32, 112, 11);
+#define RS_DEC_END \
 }
-
-/* -------------------------------------------------------------------------
- * 2) Berlekamp–Massey algorithm
- *
- * Finds the error-locator polynomial σ(x).
- * Output: sigma_out[0..L]
- * Ensures σ(0) = 1.
- *
- * L = degree of error-locator polynomial
- * ------------------------------------------------------------------------- */
-static GF_FORCE_INLINE unsigned int
-berlekamp_massey(struct reed_solomon *rs,
-		 gf_sym *S,
-		 gf_sym *B, gf_sym *C,
-		 gf_sym *Temp)
-{
-    struct galois_field *gf = &rs->gf;
-    unsigned int L = 0;
-    unsigned int i, n;
-
-    for (i = 0; i < rs->T; i++)
-	/*
-	 * Put S into log format so it doesn't have to be recomputed
-	 * when used.  It doesn't matter if S[i] is zero upon entry.
-	 */
-	S[i] = gf_log_nc(gf, S[i]);
-
-    /*
-     * Instead of copying the B array, move it backwards.  This can
-     * happen at most RS_MAX_T times, so start out there.
-     */
-    B += RS_MAX_T;
-
-    memset(C + 1, 0, sizeof(gf_sym) * rs->T);
-    C[0] = 1;
-
-    /* B array is in log format. */
-    for (i = 0; i <= rs->T; i++)
-	B[i] = gf->Np;
-    B[0] = gf_log_nc(gf, 1);
-
-    for (n = 1; n <= rs->T; n++) {
-	gf_sym d = 0;
-
-	for (i = 0; i < n; i++)
-	    /* d += C[i] * S[n - i - 1] */
-	    d = gf_add(d, gf_mul_el(gf, C[i], S[n - i - 1]));
-
-	if (d == 0) {
-	    B--;
-	    B[0] = gf->Np;
-	} else {
-	    d = gf_log_nc(gf, d);
-	    Temp[0] = C[0];
-	    for (i = 0; i < rs->T; i++)
-		Temp[i + 1] = gf_add(C[i + 1], gf_mul_ll(gf, d, B[i]));
-
-	    if (2 * L <= n - 1) {
-		for (i = 0; i <= rs->T; i++)
-		    B[i] = gf_div_el_l(gf, C[i], d);
-
-		L = n - L;
-	    } else {
-		B--;
-		B[0] = gf->Np;
-	    }
-
-	    memcpy(C, Temp, rs->T * sizeof(gf_sym));
-	}
-    }
-
-    return L;
-}
-
-/* -------------------------------------------------------------------------
- * 3) Chien search
- *
- * Find i such that σ(α^{-i}) = 0, for i = 0..Np-1.
- * Each such i corresponds to an error at position i.
- * Returns non-zero if errors are uncorrectible.
- * ------------------------------------------------------------------------- */
-static GF_FORCE_INLINE unsigned int
-chien_search(struct reed_solomon *rs, unsigned int L,
-	     gf_sym *C, gf_sym *Temp,
-	     unsigned int *err_idx, unsigned int *err_pos,
-	     unsigned int *rcount)
-{
-    struct galois_field *gf = &rs->gf;
-    unsigned int count = 0, d = 0;
-    unsigned int i, j, k;
-
-    for (i = 0; i <= rs->T; i++) {
-	if (C[i] != 0)
-	    d = i;
-	/* Convert C[i] to log format for faster processing. */
-	C[i] = gf_log_nc(gf, C[i]);
-	Temp[i] = C[i];
-    }
-
-    k = rs->iprim - 1;
-    for (i = 1; i <= gf->Np; i++) {
-	unsigned int sum = 1;
-
-	for (j = d; j > 0; j--) {
-	    Temp[j] = gf_mul_ll_l(gf, Temp[j], j);
-	    sum = gf_add(sum, gf_exp(gf, Temp[j]));
-	}
-
-	if (sum == 0) {
-	    err_idx[count] = i;
-	    err_pos[count++] = k;
-	    if (count == d)
-		break;
-	}
-
-	k = (k + rs->iprim) % gf->Np;
-    }
-
-    *rcount = count;
-
-    return d != count;
-}
-
-/* -------------------------------------------------------------------------
- * 4) Error magnitude solving via linear system
- *
- * Simplified Forney method:
- *     S_l = Σ e_k α^{(l+1) * i_k}
- * Solve for e_k using Gaussian elimination in GF(2^m).
- * ------------------------------------------------------------------------- */
-static GF_FORCE_INLINE void
-correct_errors(struct reed_solomon *rs,
-	       gf_sym *e, unsigned int pad, const gf_sym *S,
-	       const gf_sym *C, gf_sym *O,
-	       const unsigned int *err_idx, const unsigned int *err_pos,
-	       unsigned int err_cnt)
-{
-    struct galois_field *gf = &rs->gf;
-    unsigned int i, j, o;
-
-    o = err_cnt - 1;
-    for (i = 0; i <= o; i++) {
-	O[i] = 0;
-	for (j = 0; j <= i; j++)
-	    /* O[i] += S[i - j] * C[j] */
-	    O[i] = gf_add(O[i], gf_mul_ll(gf, S[i - j], C[j]));
-	/* Convert O[i] to log format for faster processing. */
-	O[i] = gf_log(gf, O[i]);
-    }
-
-    for (i = 0; i < err_cnt; i++) {
-	unsigned int tmp = 0, tmp2, d;
-
-	for (j = 0; j <= o; j++)
-	    /* tmp += O[j] * j ^ err_idx[i] */
-	    tmp = gf_add(tmp, gf_mul_ll(gf, O[j],
-					gf_pow_l_l(gf, j, err_idx[i])));
-	/* tmp2 = err_index[i] ^ (fcr - 1) */
-	tmp2 = gf_pow_l(gf, err_idx[i], rs->fcr - 1);
-
-	d = 0;
-	if (err_cnt < rs->T - 1)
-	    j = err_cnt;
-	else
-	    j = rs->T - 1;
-	for (j = j & ~1; ; j -= 2) {
-	    /* d += C[j + 1] * j ^ err_idx[i] */
-	    d = gf_add(d, gf_mul_ll(gf, C[j + 1],
-				    gf_pow_l_l(gf, j, err_idx[i])));
-	    if (j < 2)
-		break;
-	}
-
-	if (err_pos[i] >= pad)
-	    e[err_pos[i] - pad] = gf_add(e[err_pos[i] - pad],
-					 gf_div(gf, gf_mul(gf, tmp, tmp2), d));
-    }
-}
-
-/* -------------------------------------------------------------------------
- * 5) Public API: RS decoding
- *
- * Steps:
- *   - Expand to parent length: [S zero-symbols][Ns received]
- *   - Compute syndromes
- *   - If non-zero: BM → Chien → Solve magnitudes → Correct
- *   - Output:
- *       code_bits : Ns symbols
- *       info_bits : first K symbols
- * ------------------------------------------------------------------------- */
-int
-rs_decode(struct reed_solomon_decoder *rsd,
-	  uint8_t *data, unsigned int len,
-	  unsigned int *err_count)
-{
-    struct reed_solomon *rs = rsd->rs;
-    struct galois_field *gf = &rs->gf;
-    unsigned int count = 0;
-
-    if (len > gf->Np)
-	return 1;
-    if (len <= rs->T)
-	return 1;
-    rsd->N = len;
-    rsd->K = len - rs->T;
-    /* Number of shortened symbols */
-    rsd->S = gf->Np - rsd->N;
-
-    /* Syndromes */
-    count = compute_syndromes(rs, rsd->S, data, rsd->synd);
-
-    if (count == 0) {
-	*err_count = 0;
-	return 0;
-    }
-
-    /* BM → locator polynomial */
-    unsigned int L = berlekamp_massey(rs, rsd->synd, rsd->B, rsd->C,
-				      rsd->Temp);
-
-    /* Chien search */
-    if (chien_search(rs, L, rsd->C, rsd->Temp,
-		     rsd->error_idx, rsd->error_pos, &count))
-	return 1; /* Could not correct all symbols. */
-
-    /* Correct */
-    if (count > 0)
-	correct_errors(rs, data, rsd->S, rsd->synd, rsd->C, rsd->O,
-		       rsd->error_idx, rsd->error_pos, count);
-
-    *err_count = count;
-
-    return 0;
-}
-
-/*
- * The decoder doesn't seem to benefit much from the optimizations
- * done for the encoder, so just call it for now.
- */
-int
-rs_decode_8(uint8_t *data, unsigned int len,
-	    unsigned int *err_count)
-{
-    struct reed_solomon rs;
-    struct reed_solomon_decoder rsd;
-
-    reed_solomon_init(&rs, 8, 0x187, 32, 112, 11);
-    rs_decoder_init(&rsd, &rs);
-
-    return rs_decode(&rsd, data, len, err_count);
-}
+#define RS_NAME(x) CCSDS_ ## x
+#include "rs_encode.h"
+#include "rs_decode.h"
+#undef RS_T
+#undef GF_NP
+#undef GF_EXP
+#undef GF_LOG
+#undef GF_MUL
+#undef GF_MUL_LL
+#undef GF_MUL_EL
+#undef GF_MUL_LE
+#undef GF_MUL_LL_L
+#undef GF_DIV
+#undef GF_DIV_EL_L
+#undef GF_POW_L
+#undef GF_POW_L_L
+#undef RS_LEN
+#undef RS_USE_GF
+#undef RS_GENERATOR
+#undef RS_ENC_START
+#undef RS_ENC_END

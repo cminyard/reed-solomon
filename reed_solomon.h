@@ -107,11 +107,6 @@ int rs_encode_8(uint8_t *inbuf, unsigned int len, uint8_t *parity);
 struct reed_solomon_decoder {
     struct reed_solomon *rs;
 
-    unsigned int N;  /* Codeword length (shortened) */
-    unsigned int S;  /* Shortening amount = gf.Np - N */
-    unsigned int K;  /* Number of information symbols */
-    unsigned int pad;
-
 #if GF_DYN_ALLOC
     gf_sym *C;
     gf_sym *B;

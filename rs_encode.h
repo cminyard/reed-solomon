@@ -23,12 +23,12 @@ RS_ENC_START()
 	    for (j = 1; j < RS_T; j++)
 		/* parity[j] += fb * rse->generator[RS_T - j] */
 		parity[j] = gf_add(parity[j],
-				   GF_MUL_LL(gf, fb, RS_GENERATOR[RS_T - j]));
+				   GF_MUL_LL(fb, RS_GENERATOR[RS_T - j]));
 	}
 	memmove(parity, parity + 1, (RS_T - 1) * sizeof(gf_sym));
 
 	if (fb != GF_NP) {
-	    parity[RS_T - 1] = GF_MUL_LL(gf, fb, RS_GENERATOR[0]);
+	    parity[RS_T - 1] = GF_MUL_LL(fb, RS_GENERATOR[0]);
 	} else {
 	    parity[RS_T - 1] = 0;
 	}

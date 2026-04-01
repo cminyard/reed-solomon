@@ -17,7 +17,8 @@ tester: tester.o reed_solomon.o galois_field.o
 
 tester.o: tester.c reed_solomon.h galois_field.h
 
-reed_solomon.o: reed_solomon.c reed_solomon.h galois_field.h
+reed_solomon.o: reed_solomon.c reed_solomon.h galois_field.h \
+	rs_encode.h rs_decode.h
 
 galois_field.o: galois_field.c galois_field.h
 
