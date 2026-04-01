@@ -118,7 +118,7 @@ struct reed_solomon_decoder {
     gf_sym C[RS_MAX_T + 1]; /* current polynomial */
 
     /* Two temporary arrays used by decoding */
-    gf_sym B[RS_MAX_T + 1]; /* previous polynomial */
+    gf_sym B[2 * RS_MAX_T + 1]; /* previous polynomial */
     gf_sym Temp[RS_MAX_T + 1];
 
     /* Syndrome array. */
