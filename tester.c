@@ -4,8 +4,15 @@
 #include <stdbool.h>
 #include <string.h>
 #include <time.h>
+
+#define DO_RS_CHECK 1
+#define DO_LIBFEC_CHECK 1
+
 #include "reed_solomon.h"
+
+#if DO_LIBFEC_CHECK
 #include <fec.h>
+#endif
 
 static unsigned int
 test_one(unsigned int num_errs,
@@ -13,30 +20,45 @@ test_one(unsigned int num_errs,
 	 struct reed_solomon_decoder *rsd)
 {
     unsigned int i;
-    uint8_t origbuf[255], buf[255];
+    uint8_t origbuf[255];
+#if DO_RS_CHECK
+    uint8_t buf[255];
+#endif
+#if DO_LIBFEC_CHECK
     uint8_t buf2[255];
+#endif
     bool errpos[255] = { false };
     unsigned int err = 0;
     unsigned int errcount = 0;
 
     for (i = 0; i < 223; i++) {
-	buf[i] = rand();
-	origbuf[i] = buf[i];
+	origbuf[i] = rand();
+#if DO_RS_CHECK
+	buf[i] = origbuf[i];
+#endif
+#if DO_LIBFEC_CHECK
 	buf2[i] = origbuf[i];
+#endif
     }
 
+#if DO_RS_CHECK
     /* Add the parity bytes. */
     rs_encode(rse, buf, 223, buf + 223);
+#endif
 
+#if DO_LIBFEC_CHECK
     /* Do it with libfec to compare. */
     encode_rs_8(buf2, buf2 + 223, 0);
 
+#if DO_RS_CHECK
     for (i = 0; i < 255; i++) {
 	if (buf[i] != buf2[i]) {
 	    printf("Diff1(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
 	    return 1;
 	}
     }
+#endif
+#endif
 
 #if 0
     printf("Encoded:");
@@ -55,31 +77,24 @@ test_one(unsigned int num_errs,
 	if (errpos[pos / 8])
 	    continue;
 
+#if DO_RS_CHECK
 	buf[pos / 8] ^= 1 << (pos % 8);
+#endif
+#if DO_LIBFEC_CHECK
 	buf2[pos / 8] ^= 1 << (pos % 8);
+#endif
 #if 0
 	printf("Injecting error at byte %u\n", pos / 8);
 #endif
 	errpos[pos / 8] = true;
 	i++;
     }
+#if DO_RS_CHECK
     if (rs_decode(rsd, buf, 255, &errcount)) {
 	return 1;
     } else {
 	if (errcount != num_errs) {
 	    printf("Error count mismatch: %u %u\n", num_errs, errcount);
-	    return 1;
-	}
-    }
-
-    errcount = decode_rs_8(buf2, NULL, 0, 0);
-    if (errcount != num_errs) {
-	printf("Bad err count 1\n");
-    }
-
-    for (i = 0; i < 223; i++) {
-	if (buf2[i] != origbuf[i]) {
-	    printf("Diff2(%d): %2.2x %2.2x\n", i, buf[i], buf2[i]);
 	    return 1;
 	}
     }
@@ -91,6 +106,21 @@ test_one(unsigned int num_errs,
 	    break;
 	}
     }
+#endif
+
+#if DO_LIBFEC_CHECK
+    errcount = decode_rs_8(buf2, NULL, 0, 0);
+    if (errcount != num_errs) {
+	printf("Bad err count 1\n");
+    }
+
+    for (i = 0; i < 223; i++) {
+	if (buf2[i] != origbuf[i]) {
+	    printf("Diff2(%d): %2.2x %2.2x\n", i, origbuf[i], buf2[i]);
+	    return 1;
+	}
+    }
+#endif
 
     return err;
 }
