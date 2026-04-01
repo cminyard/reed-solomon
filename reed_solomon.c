@@ -71,6 +71,10 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
 	}
 	rse->generator[0] = gf_mul(gf, tmp[0], gf_exp_o(gf, root));
     }
+
+    /* Put the generators into log format to speed calculations. */
+    for (i = 0; i < rs->T; i++)
+	rse->generator[i] = gf_log_nc(gf, rse->generator[i]);
 }
 
 /**
@@ -96,18 +100,18 @@ rs_encode(struct reed_solomon_encoder *rse,
 
     /* Feed the actual data. */
     for (i = 0; i < len; i++) {
-	gf_sym fb = gf_add(inbuf[i], parity[0]);
+	gf_sym fb = gf_log_nc(gf, gf_add(inbuf[i], parity[0]));
 
-	if (fb != 0) {
+	if (fb != gf->Np) {
 	    for (j = 1; j < rs->T; j++)
 		/* parity[j] += fb * rse->generator[rs->T - j] */
 		parity[j] = gf_add(parity[j],
-				   gf_mul(gf, fb, rse->generator[rs->T - j]));
+				   gf_mul_ll(gf, fb, rse->generator[rs->T - j]));
 	}
-	memcpy(parity, parity + 1, rs->T * sizeof(gf_sym));
+	memmove(parity, parity + 1, rs->T * sizeof(gf_sym));
 
-	if (fb != 0)
-	    parity[rs->T - 1] = gf_mul(gf, fb, rse->generator[0]);
+	if (fb != gf->Np)
+	    parity[rs->T - 1] = gf_mul_ll(gf, fb, rse->generator[0]);
 	else
 	    parity[rs->T - 1] = 0;
     }
@@ -155,21 +159,28 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
 	S[i] = e[0];
 
     for (i = 1; i < N; i++) {
-	for (j = 0; j < rs->T; j++)
-	    /* S[j] = e[i] + (S[j] * (rs->fcr + j) ^ rs->prim) */
-	    S[j] = gf_add(e[i],
-			  gf_mul(gf, S[j],
-				 gf_pow_l(gf, rs->fcr + j, rs->prim)));
+	for (j = 0; j < rs->T; j++) {
+	    if (S[j] == 0) {
+		S[j] = e[i];
+	    } else {
+		/* S[j] = e[i] + (S[j] * (rs->fcr + j) ^ rs->prim) */
+		S[j] = e[i] ^ gf->exp[(gf->log[S[j]]
+				       + (rs->fcr + j) * rs->prim) % gf->Np];
+		/*
+		 * Direct calculation above is much faster than the below
+		 * because it doesn't do all the error checks.
+		 *
+		 * S[j] = gf_add(e[i],
+		 *	      gf_mul_el(gf, S[j],
+		 *			gf_pow_l_l(gf, rs->fcr + j, rs->prim)));
+		 */
+	    }
+	}
     }
 
     for (i = 0; i < rs->T; i++) {
 	if (S[i])
 	    count++;
-	/*
-	 * Put S into log format so it doesn't have to be recomputed
-	 * when used.  It doesn't matter if S[i] is zero upon entry.
-	 */
-	S[i] = gf_log_nc(gf, S[i]);
     }
 
     return count;
@@ -193,6 +204,13 @@ berlekamp_massey(struct reed_solomon *rs,
     struct galois_field *gf = &rs->gf;
     unsigned int L = 0;
     unsigned int i, n;
+
+    for (i = 0; i < rs->T; i++)
+	/*
+	 * Put S into log format so it doesn't have to be recomputed
+	 * when used.  It doesn't matter if S[i] is zero upon entry.
+	 */
+	S[i] = gf_log_nc(gf, S[i]);
 
     /*
      * Instead of copying the B array, move it backwards.  This can
@@ -388,26 +406,26 @@ rs_decode(struct reed_solomon_decoder *rsd,
     /* Syndromes */
     count = compute_syndromes(rs, rsd->N, data, rsd->synd);
 
-    if (count != 0) {
-	/* BM → locator polynomial */
-	unsigned int L = berlekamp_massey(rs, rsd->synd, rsd->B, rsd->C,
-					  rsd->Temp);
-
-	/* Chien search */
-	if (chien_search(rs, L, rsd->C, rsd->Temp,
-			 rsd->error_idx, rsd->error_pos, &count))
-	    return 1; /* Could not correct all symbols. */
-
-	/* Correct */
-	if (count > 0)
-	    correct_errors(rs, data, rsd->synd, rsd->C, rsd->O,
-			   rsd->error_idx, rsd->error_pos, count);
+    if (count == 0) {
+	*err_count = 0;
+	return 0;
     }
 
-    *err_count = count;
+    /* BM → locator polynomial */
+    unsigned int L = berlekamp_massey(rs, rsd->synd, rsd->B, rsd->C,
+				      rsd->Temp);
 
-    if (count == 0) /* No errors. */
-	return 0;
+    /* Chien search */
+    if (chien_search(rs, L, rsd->C, rsd->Temp,
+		     rsd->error_idx, rsd->error_pos, &count))
+	return 1; /* Could not correct all symbols. */
+
+    /* Correct */
+    if (count > 0)
+	correct_errors(rs, data, rsd->synd, rsd->C, rsd->O,
+		       rsd->error_idx, rsd->error_pos, count);
+
+    *err_count = count;
 
     /* Output K information symbols */
     if (rsd->S != 0)
