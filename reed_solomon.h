@@ -110,10 +110,9 @@ struct reed_solomon_decoder {
     unsigned int N;  /* Codeword length (shortened) */
     unsigned int S;  /* Shortening amount = gf.Np - N */
     unsigned int K;  /* Number of information symbols */
+    unsigned int pad;
 
 #if GF_DYN_ALLOC
-    gf_sym *data;
-
     gf_sym *C;
     gf_sym *B;
     gf_sym *Temp;
@@ -124,12 +123,6 @@ struct reed_solomon_decoder {
 
     gf_sym *O;
 #else
-    /*
-     * Incoming data, it is copied here if the input buffer is
-     * partial, otherwise the user's data is used.
-     */
-    gf_sym data[GF_MAX];
-
     /* Lambda array. */
     gf_sym C[RS_MAX_T + 1]; /* current polynomial */
 

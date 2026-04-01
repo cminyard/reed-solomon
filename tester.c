@@ -44,7 +44,6 @@ test_one(unsigned int num_errs,
 #if DO_RS_CHECK
     /* Add the parity bytes. */
     rs_encode(rse, buf, enc_len, buf + enc_len);
-    //rs_encode_8(buf, enc_len, buf + enc_len);
 #endif
 
 #if DO_LIBFEC_CHECK
@@ -92,6 +91,8 @@ test_one(unsigned int num_errs,
     }
 #if DO_RS_CHECK
     if (rs_decode(rsd, buf, enc_len + 32, &errcount)) {
+	if (num_errs <= 16)
+	    printf("Decode error\n");
 	return 1;
     } else {
 	if (errcount != num_errs) {

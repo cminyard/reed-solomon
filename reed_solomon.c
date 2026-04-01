@@ -223,8 +223,6 @@ rs_decoder_init(struct reed_solomon_decoder *rsd,
 {
     rsd->rs = rs;
 #if GF_DYN_ALLOC
-    rsd->data = malloc(sizeof(gf_sym) * GF_MAX);
-
     rsd->C = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
     rsd->B = malloc(sizeof(gf_sym) * (2 * RS_MAX_T + 1));
     rsd->Temp = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
@@ -246,28 +244,51 @@ rs_decoder_init(struct reed_solomon_decoder *rsd,
  * Zero syndromes = no errors.
  * ------------------------------------------------------------------------- */
 static GF_FORCE_INLINE unsigned int
-compute_syndromes(struct reed_solomon *rs, unsigned int N,
+compute_syndromes(struct reed_solomon *rs, unsigned int pad,
 		  const gf_sym *e, gf_sym *S)
 {
     struct galois_field *gf = &rs->gf;
     unsigned int i, j, count = 0;
 
-    for (i = 0; i < rs->T; i++)
-	S[i] = e[0];
+    if (pad > 0) {
+	memset(S, 0, rs->T * sizeof(gf_sym));
+	for (i = 1; i < pad; i++) {
+	    for (j = 0; j < rs->T; j++) {
+		if (S[j] == 0) {
+		    S[j] = 0;
+		} else {
+		    /* S[j] = (S[j] * (rs->fcr + j) ^ rs->prim) */
+		    S[j] = gf->exp[(gf->log[S[j]]
+				    + (rs->fcr + j) * rs->prim) % gf->Np];
+		    /*
+		     * Direct calculation above is much faster than the below
+		     * because it doesn't do all the error checks.
+		     *
+		     * S[j] = gf_mul_el(gf, S[j],
+		     *		    gf_pow_l_l(gf, rs->fcr + j, rs->prim)));
+		     */
+		}
+	    }
+	}
+    } else {
+	for (i = 0; i < rs->T; i++)
+	    S[i] = e[0];
+	i = 1;
+    }
 
-    for (i = 1; i < N; i++) {
+    for (; i < gf->Np; i++) {
 	for (j = 0; j < rs->T; j++) {
 	    if (S[j] == 0) {
-		S[j] = e[i];
+		S[j] = e[i - pad];
 	    } else {
 		/* S[j] = e[i] + (S[j] * (rs->fcr + j) ^ rs->prim) */
-		S[j] = e[i] ^ gf->exp[(gf->log[S[j]]
+		S[j] = e[i - pad] ^ gf->exp[(gf->log[S[j]]
 				       + (rs->fcr + j) * rs->prim) % gf->Np];
 		/*
 		 * Direct calculation above is much faster than the below
 		 * because it doesn't do all the error checks.
 		 *
-		 * S[j] = gf_add(e[i],
+		 * S[j] = gf_add(e[i = pad],
 		 *	      gf_mul_el(gf, S[j],
 		 *			gf_pow_l_l(gf, rs->fcr + j, rs->prim)));
 		 */
@@ -414,7 +435,7 @@ chien_search(struct reed_solomon *rs, unsigned int L,
  * ------------------------------------------------------------------------- */
 static GF_FORCE_INLINE void
 correct_errors(struct reed_solomon *rs,
-	       gf_sym *e, const gf_sym *S,
+	       gf_sym *e, unsigned int pad, const gf_sym *S,
 	       const gf_sym *C, gf_sym *O,
 	       const unsigned int *err_idx, const unsigned int *err_pos,
 	       unsigned int err_cnt)
@@ -455,8 +476,9 @@ correct_errors(struct reed_solomon *rs,
 		break;
 	}
 
-	e[err_pos[i]] = gf_add(e[err_pos[i]],
-			       gf_div(gf, gf_mul(gf, tmp, tmp2), d));
+	if (err_pos[i] >= pad)
+	    e[err_pos[i] - pad] = gf_add(e[err_pos[i] - pad],
+					 gf_div(gf, gf_mul(gf, tmp, tmp2), d));
     }
 }
 
@@ -473,12 +495,11 @@ correct_errors(struct reed_solomon *rs,
  * ------------------------------------------------------------------------- */
 int
 rs_decode(struct reed_solomon_decoder *rsd,
-	  uint8_t *buf, unsigned int len,
+	  uint8_t *data, unsigned int len,
 	  unsigned int *err_count)
 {
     struct reed_solomon *rs = rsd->rs;
     struct galois_field *gf = &rs->gf;
-    uint8_t *data;
     unsigned int count = 0;
 
     if (len > gf->Np)
@@ -490,18 +511,8 @@ rs_decode(struct reed_solomon_decoder *rsd,
     /* Number of shortened symbols */
     rsd->S = gf->Np - rsd->N;
 
-    if (rsd->S == 0) {
-	data = buf;
-    } else {
-	data = rsd->data;
-
-	/* Fill the beginning with zeros and copy the rest in. */
-	memset(data, 0, rsd->S * sizeof(gf_sym));
-	memcpy(data + rsd->S, buf, rsd->N * sizeof(gf_sym));
-    }
-
     /* Syndromes */
-    count = compute_syndromes(rs, gf->Np, data, rsd->synd);
+    count = compute_syndromes(rs, rsd->S, data, rsd->synd);
 
     if (count == 0) {
 	*err_count = 0;
@@ -519,14 +530,10 @@ rs_decode(struct reed_solomon_decoder *rsd,
 
     /* Correct */
     if (count > 0)
-	correct_errors(rs, data, rsd->synd, rsd->C, rsd->O,
+	correct_errors(rs, data, rsd->S, rsd->synd, rsd->C, rsd->O,
 		       rsd->error_idx, rsd->error_pos, count);
 
     *err_count = count;
-
-    /* Output K information symbols */
-    if (rsd->S != 0)
-	memcpy(buf, data + rsd->S, rsd->K * sizeof(gf_sym));
 
     return 0;
 }
