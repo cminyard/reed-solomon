@@ -24,6 +24,8 @@
 #include <stdio.h>
 #endif
 
+#define GF_FORCE_INLINE __attribute__((always_inline)) inline
+
 /* -------------------------------------------------------------------------
  * Configuration
  * ------------------------------------------------------------------------- */
@@ -56,7 +58,7 @@ struct galois_field {
 /**
  * @brief alpha ^ a, a must be a valid gf number.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_exp_nc(struct galois_field *gf, gf_sym a)
 {
     return gf->exp[a];
@@ -65,7 +67,7 @@ gf_exp_nc(struct galois_field *gf, gf_sym a)
 /**
  * @brief alpha ^ a, a must be a valid gf number.  a is checked for zero.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_exp(struct galois_field *gf, gf_sym a)
 {
     if (a == gf->Np)
@@ -76,7 +78,7 @@ gf_exp(struct galois_field *gf, gf_sym a)
 /**
  * @brief alpha ^ a, a may be an arbitrary number.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_exp_o(struct galois_field *gf, unsigned int a)
 {
     return gf_exp_nc(gf, a % gf->Np);
@@ -85,7 +87,7 @@ gf_exp_o(struct galois_field *gf, unsigned int a)
 /**
  * @brief like gf_log(), but no check for zero.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_log_nc(struct galois_field *gf, gf_sym a)
 {
     return gf->log[a];
@@ -94,7 +96,7 @@ gf_log_nc(struct galois_field *gf, gf_sym a)
 /**
  * @brief alpha ^ a, a must be a valid gf number.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_log(struct galois_field *gf, gf_sym a)
 {
     if (a == 0)
@@ -105,7 +107,7 @@ gf_log(struct galois_field *gf, gf_sym a)
 /**
  * @brief GF addition (same as XOR).
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_add(gf_sym a, gf_sym b)
 {
     return a ^ b;
@@ -114,7 +116,7 @@ gf_add(gf_sym a, gf_sym b)
 /**
  * @brief GF multiplication using exp/log tables.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_mul(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
@@ -133,7 +135,7 @@ gf_mul(struct galois_field *gf, gf_sym a, gf_sym b)
  * @brief GF multiplication using exp/log tables.  a and b are both in
  * log format.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_mul_ll(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
@@ -152,7 +154,7 @@ gf_mul_ll(struct galois_field *gf, gf_sym a, gf_sym b)
  * @brief GF multiplication using exp/log tables.  a and b are both in
  * log format.  Returns log format.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_mul_ll_l(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
@@ -171,7 +173,7 @@ gf_mul_ll_l(struct galois_field *gf, gf_sym a, gf_sym b)
  * @brief GF multiplication using exp/log tables.  b is in log format
  * already.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_mul_el(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
@@ -190,7 +192,7 @@ gf_mul_el(struct galois_field *gf, gf_sym a, gf_sym b)
  * @brief GF multiplication using exp/log tables.  a is in log format
  * already.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_mul_le(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
@@ -208,7 +210,7 @@ gf_mul_le(struct galois_field *gf, gf_sym a, gf_sym b)
 /**
  * @brief GF division using exp/log tables.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_div(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
@@ -230,7 +232,7 @@ gf_div(struct galois_field *gf, gf_sym a, gf_sym b)
  * @brief GF division using exp/log tables.  b is in log format and returns
  * log format.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_div_el_l(struct galois_field *gf, gf_sym a, gf_sym b)
 {
     int idx;
@@ -251,7 +253,7 @@ gf_div_el_l(struct galois_field *gf, gf_sym a, gf_sym b)
 /**
  * @brief Raise base to an integer power (base^power) in GF.
  */
-static inline
+static GF_FORCE_INLINE
 gf_sym gf_pow(struct galois_field *gf, gf_sym base, int power)
 {
     int logv;
@@ -270,7 +272,7 @@ gf_sym gf_pow(struct galois_field *gf, gf_sym base, int power)
 /**
  * @brief like gf_pow(), but base is already in log format.
  */
-static inline
+static GF_FORCE_INLINE
 gf_sym gf_pow_l(struct galois_field *gf, gf_sym base, int power)
 {
     int x;
@@ -287,7 +289,7 @@ gf_sym gf_pow_l(struct galois_field *gf, gf_sym base, int power)
 /**
  * @brief like gf_pow_l(), returns log format.
  */
-static inline
+static GF_FORCE_INLINE
 gf_sym gf_pow_l_l(struct galois_field *gf, gf_sym base, int power)
 {
     int x;
@@ -304,7 +306,7 @@ gf_sym gf_pow_l_l(struct galois_field *gf, gf_sym base, int power)
 /**
  * @brief Multiplicative inverse in GF.
  */
-static inline gf_sym
+static GF_FORCE_INLINE gf_sym
 gf_inv(struct galois_field *gf, gf_sym a)
 {
     if (a == 0)

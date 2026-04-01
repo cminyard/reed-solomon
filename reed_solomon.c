@@ -108,7 +108,7 @@ rs_encode(struct reed_solomon_encoder *rse,
 		parity[j] = gf_add(parity[j],
 				   gf_mul_ll(gf, fb, rse->generator[rs->T - j]));
 	}
-	memmove(parity, parity + 1, rs->T * sizeof(gf_sym));
+	memmove(parity, parity + 1, (rs->T - 1) * sizeof(gf_sym));
 
 	if (fb != gf->Np)
 	    parity[rs->T - 1] = gf_mul_ll(gf, fb, rse->generator[0]);
@@ -148,7 +148,7 @@ rs_decoder_init(struct reed_solomon_decoder *rsd,
  * Returns the number of non-zero syndromes.
  * Zero syndromes = no errors.
  * ------------------------------------------------------------------------- */
-static unsigned int
+static GF_FORCE_INLINE unsigned int
 compute_syndromes(struct reed_solomon *rs, unsigned int N,
 		  const gf_sym *e, gf_sym *S)
 {
@@ -195,7 +195,7 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
  *
  * L = degree of error-locator polynomial
  * ------------------------------------------------------------------------- */
-static unsigned int
+static GF_FORCE_INLINE unsigned int
 berlekamp_massey(struct reed_solomon *rs,
 		 gf_sym *S,
 		 gf_sym *B, gf_sym *C,
@@ -266,7 +266,7 @@ berlekamp_massey(struct reed_solomon *rs,
  * Each such i corresponds to an error at position i.
  * Returns non-zero if errors are uncorrectible.
  * ------------------------------------------------------------------------- */
-static unsigned int
+static GF_FORCE_INLINE unsigned int
 chien_search(struct reed_solomon *rs, unsigned int L,
 	     gf_sym *C, gf_sym *Temp,
 	     unsigned int *err_idx, unsigned int *err_pos,
@@ -315,7 +315,7 @@ chien_search(struct reed_solomon *rs, unsigned int L,
  *     S_l = Σ e_k α^{(l+1) * i_k}
  * Solve for e_k using Gaussian elimination in GF(2^m).
  * ------------------------------------------------------------------------- */
-static void
+static GF_FORCE_INLINE void
 correct_errors(struct reed_solomon *rs,
 	       gf_sym *e, const gf_sym *S,
 	       const gf_sym *C, gf_sym *O,
