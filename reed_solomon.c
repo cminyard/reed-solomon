@@ -184,6 +184,26 @@ CCSDS_do_mod(unsigned int val)
     return val;
 }
 
+#define GF_SWAP(type, x, y) do { type tmp = (x); (x) = (y); (y) = tmp; } while (0)
+
+/* Reverse the order of the array. */
+static GF_FORCE_INLINE void gf_reverse(gf_sym *x, int start, int end)
+{
+    while (start < end) {
+	GF_SWAP(gf_sym, x[start], x[end]);
+        start++;
+        end--;
+    }
+}
+
+/* Rotate the array x that is n bytes long left by k elements. */
+static GF_FORCE_INLINE void gf_shift(gf_sym *x, unsigned int n, unsigned int k)
+{
+    gf_reverse(x, 0, n - 1);
+    gf_reverse(x, 0, n - k - 1);
+    gf_reverse(x, n - k, n - 1);
+}
+
 /* Define the general-purpose Reed-Solomon coder. */
 #define RS_T rs->T
 #define GF_NP rs->gf.Np
@@ -218,6 +238,7 @@ rs_decode(struct reed_solomon_decoder *rsd, \
 #define RS_DEC_END \
 }
 #define RS_NAME(x) x
+
 #include "rs_encode.h"
 #include "rs_decode.h"
 
@@ -274,14 +295,17 @@ rs_decode_8(uint8_t *data, unsigned int len, \
 { \
     struct reed_solomon rs_data; \
     struct reed_solomon *rs = &rs_data; \
-    struct reed_solomon_decoder rsd_data = { .rs = rs }; \
+    struct reed_solomon_decoder rsd_data; \
     struct reed_solomon_decoder *rsd = &rsd_data; \
-    reed_solomon_init(rs, 8, 0x187, 32, 112, 11);
+    reed_solomon_init(rs, 8, 0x187, 32, 112, 11); \
+    rs_decoder_init(rsd, rs);
 #define RS_DEC_END \
 }
 #define RS_NAME(x) CCSDS_ ## x
+
 #include "rs_encode.h"
 #include "rs_decode.h"
+
 #undef RS_T
 #undef GF_NP
 #undef GF_EXP
