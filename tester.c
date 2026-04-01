@@ -42,7 +42,8 @@ test_one(unsigned int num_errs,
 
 #if DO_RS_CHECK
     /* Add the parity bytes. */
-    rs_encode(rse, buf, 223, buf + 223);
+    //rs_encode(rse, buf, 223, buf + 223);
+    rs_encode_8(buf, 223, buf + 223);
 #endif
 
 #if DO_LIBFEC_CHECK

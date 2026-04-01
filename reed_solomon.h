@@ -85,6 +85,22 @@ void rs_encoder_init(struct reed_solomon_encoder *rse,
 int rs_encode(struct reed_solomon_encoder *rse,
 	      uint8_t *buf, unsigned int len, uint8_t *parity);
 
+/**
+ * @brief Reed–Solomon encoding for CCSDS parameter 8 bit without
+ * dual-basis symbols. Highly optimized.
+ *
+ * @param buf Buffer to generate parity for
+ * @param parity Output parity bytes, should be T bytes long
+ *
+ * The length of the buffer may be up to 2^M symbols long, meaning
+ * that the actual data may be (2^M - T) symbols long.
+ *
+ * Initialization is not needed for this function.
+ *
+ * @return 0 on success, non-zero on error.
+ */
+int rs_encode_8(uint8_t *inbuf, unsigned int len, uint8_t *parity);
+
 /* We can process up to T/2 errors.  More than that we ignore. */
 #define RS_MAX_ERR (RS_MAX_T / 2)
 
