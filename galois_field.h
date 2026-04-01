@@ -68,7 +68,16 @@ gf_exp(struct galois_field *gf, gf_sym a)
 static inline gf_sym
 gf_exp_o(struct galois_field *gf, unsigned int a)
 {
-    return gf->exp[a % gf->Np];
+    return gf_exp(gf, a % gf->Np);
+}
+
+/**
+ * @brief alpha ^ a, a must be a valid gf number.
+ */
+static inline gf_sym
+gf_log(struct galois_field *gf, gf_sym a)
+{
+    return gf->log[a];
 }
 
 /**
@@ -91,11 +100,11 @@ gf_mul(struct galois_field *gf, gf_sym a, gf_sym b)
     if (a == 0 || b == 0)
 	return 0;
 
-    idx = gf->log[a] + gf->log[b];
+    idx = gf_log(gf, a) + gf_log(gf, b);
     if (idx >= gf->Np)
 	idx -= gf->Np;
 
-    return gf->exp[idx];
+    return gf_exp(gf, idx);
 }
 
 /**
@@ -112,11 +121,11 @@ gf_div(struct galois_field *gf, gf_sym a, gf_sym b)
     if (a == 0)
 	return 0;
 
-    idx = (int) gf->log[a] - (int) gf->log[b];
+    idx = (int) gf_log(gf, a) - (int) gf_log(gf, b);
     if (idx < 0)
 	idx += gf->Np;
 
-    return gf->exp[idx];
+    return gf_exp(gf, idx);
 }
 
 /**
@@ -131,7 +140,7 @@ gf_sym gf_pow(struct galois_field *gf, gf_sym base, int power)
     if (base == 0)
 	return 0;
 
-    logv = gf->log[base];
+    logv = gf_log(gf, base);
     x = (logv * power) % gf->Np;
     if (x < 0)
 	x += gf->Np;
@@ -142,7 +151,7 @@ gf_sym gf_pow(struct galois_field *gf, gf_sym base, int power)
  * @brief like gf_pow(), but base is already in log format.
  */
 static inline
-gf_sym gf_pow_nl(struct galois_field *gf, gf_sym base, int power)
+gf_sym gf_pow_l(struct galois_field *gf, gf_sym base, int power)
 {
     int x;
 
@@ -168,7 +177,7 @@ gf_inv(struct galois_field *gf, gf_sym a)
      * gf->exp has a value for gf->Np to handle when gf->log[a] == 0.
      * See galois_field.c for details.
      */
-    return gf->exp[gf->Np - gf->log[a]];
+    return gf->exp[gf->Np - gf_log(gf, a)];
 }
 
 /* -------------------------------------------------------------------------

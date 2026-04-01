@@ -159,7 +159,7 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
 	    /* S[j] = e[i] + (S[j] * (rs->fcr + j) ^ rs->prim) */
 	    S[j] = gf_add(e[i],
 			  gf_mul(gf, S[j],
-				 gf_pow_nl(gf, rs->fcr + j, rs->prim)));
+				 gf_pow_l(gf, rs->fcr + j, rs->prim)));
     }
 
     for (i = 0; i < rs->T; i++) {
@@ -311,9 +311,9 @@ correct_errors(struct reed_solomon *rs,
 	for (j = 0; j <= o; j++)
 	    /* tmp += O[j] * j ^ err_idx[i] */
 	    tmp = gf_add(tmp, gf_mul(gf, O[j],
-				     gf_pow_nl(gf, j, err_idx[i])));
+				     gf_pow_l(gf, j, err_idx[i])));
 	/* tmp2 = err_index[i] ^ (fcr - 1) */
-	tmp2 = gf_pow_nl(gf, err_idx[i], rs->fcr - 1);
+	tmp2 = gf_pow_l(gf, err_idx[i], rs->fcr - 1);
 
 	d = 0;
 	if (err_cnt < rs->T - 1)
@@ -323,7 +323,7 @@ correct_errors(struct reed_solomon *rs,
 	for (j = j & ~1; ; j -= 2) {
 	    /* d += C[j + 1] * j ^ err_idx[i] */
 	    d = gf_add(d, gf_mul(gf, C[j + 1],
-				 gf_pow_nl(gf, j, err_idx[i])));
+				 gf_pow_l(gf, j, err_idx[i])));
 	    if (j < 2)
 		break;
 	}

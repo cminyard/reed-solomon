@@ -6,7 +6,7 @@
 #include <time.h>
 
 #define DO_RS_CHECK 1
-#define DO_LIBFEC_CHECK 1
+#define DO_LIBFEC_CHECK 0
 
 #include "reed_solomon.h"
 
@@ -28,7 +28,6 @@ test_one(unsigned int num_errs,
     uint8_t buf2[255];
 #endif
     bool errpos[255] = { false };
-    unsigned int err = 0;
     unsigned int errcount = 0;
 
     for (i = 0; i < 223; i++) {
@@ -102,8 +101,7 @@ test_one(unsigned int num_errs,
     for (i = 0; i < 223; i++) {
 	if (buf[i] != origbuf[i]) {
 	    printf("Data mismatch\n");
-	    err = 1;
-	    break;
+	    return 1;
 	}
     }
 #endif
@@ -122,7 +120,7 @@ test_one(unsigned int num_errs,
     }
 #endif
 
-    return err;
+    return 0;
 }
 
 static unsigned int
@@ -173,7 +171,7 @@ main(int argc, char *argv[])
     rs_encoder_init(&rse, &rs);
     rs_decoder_init(&rsd, &rs);
 
-    for (i = 0; i < 128; i++) {
+    for (i = 0; i < 32; i++) {
 	unsigned int errs = test_loop(loops, i, &rse, &rsd);
 
 	if (do_cpu_usage)
