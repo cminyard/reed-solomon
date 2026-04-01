@@ -1,6 +1,9 @@
 
 all: tester
 
+# No SIMD support yet, just a placeholder.
+DO_SIMD = 0
+
 # X86 support
 # popcnt was added in the Nehalem CPU
 ARCH = -march=native
