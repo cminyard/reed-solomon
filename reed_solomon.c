@@ -165,6 +165,8 @@ compute_syndromes(struct reed_solomon *rs, unsigned int N,
     for (i = 0; i < rs->T; i++) {
 	if (S[i])
 	    count++;
+	/* Put S into log format so it doesn't have to be recomputed when used */
+	S[i] = gf_log(gf, S[i]);
     }
 
     return count;
@@ -195,10 +197,9 @@ berlekamp_massey(struct reed_solomon *rs,
      */
     B += RS_MAX_T;
 
-    memset(B + 1, 0, sizeof(gf_sym) * RS_MAX_T);
-    memset(C + 1, 0, sizeof(gf_sym) * RS_MAX_T);
-
+    memset(C + 1, 0, sizeof(gf_sym) * rs->T);
     C[0] = 1;
+    memset(B + 1, 0, sizeof(gf_sym) * rs->T);
     B[0] = 1;
 
     for (n = 1; n <= rs->T; n++) {
@@ -206,7 +207,7 @@ berlekamp_massey(struct reed_solomon *rs,
 
 	for (i = 0; i < n; i++)
 	    /* d += C[i] * S[n - i - 1] */
-	    d = gf_add(d, gf_mul(gf, C[i], S[n - i - 1]));
+	    d = gf_add(d, gf_mul_el(gf, C[i], S[n - i - 1]));
 
 	if (d == 0) {
 	    B--;
@@ -214,7 +215,7 @@ berlekamp_massey(struct reed_solomon *rs,
 	} else {
 	    Temp[0] = C[0];
 	    for (i = 0; i < rs->T; i++)
-		    Temp[i + 1] = gf_add(C[i + 1], gf_mul(gf, d, B[i]));
+		Temp[i + 1] = gf_add(C[i + 1], gf_mul(gf, d, B[i]));
 
 	    if (2 * L <= n - 1) {
 		for (i = 0; i <= rs->T; i++)
@@ -302,7 +303,7 @@ correct_errors(struct reed_solomon *rs,
 	O[i] = 0;
 	for (j = 0; j <= i; j++)
 	    /* O[i] += S[i - j] * C[j] */
-	    O[i] = gf_add(O[i], gf_mul(gf, S[i - j], C[j]));
+	    O[i] = gf_add(O[i], gf_mul_le(gf, S[i - j], C[j]));
     }
 
     for (i = 0; i < err_cnt; i++) {

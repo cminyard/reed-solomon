@@ -108,6 +108,44 @@ gf_mul(struct galois_field *gf, gf_sym a, gf_sym b)
 }
 
 /**
+ * @brief GF multiplication using exp/log tables.  b is in log format
+ * already.
+ */
+static inline gf_sym
+gf_mul_el(struct galois_field *gf, gf_sym a, gf_sym b)
+{
+    int idx;
+
+    if (a == 0 || b == gf->Np)
+	return 0;
+
+    idx = gf_log(gf, a) + b;
+    if (idx >= gf->Np)
+	idx -= gf->Np;
+
+    return gf_exp(gf, idx);
+}
+
+/**
+ * @brief GF multiplication using exp/log tables.  a is in log format
+ * already.
+ */
+static inline gf_sym
+gf_mul_le(struct galois_field *gf, gf_sym a, gf_sym b)
+{
+    int idx;
+
+    if (a == gf->Np || b == 0)
+	return 0;
+
+    idx = a + gf_log(gf, b);
+    if (idx >= gf->Np)
+	idx -= gf->Np;
+
+    return gf_exp(gf, idx);
+}
+
+/**
  * @brief GF division using exp/log tables.
  */
 static inline gf_sym
