@@ -145,6 +145,7 @@ main(int argc, char *argv[])
     struct reed_solomon_decoder rsd = { .rs = &rs };
     unsigned int loops = 100;
     bool do_cpu_usage = false;
+    unsigned int num_errs = 8;
     unsigned int i;
     int arg, err = 0;
 
@@ -160,6 +161,13 @@ main(int argc, char *argv[])
 		return 1;
 	    }
 	    loops = strtoul(argv[arg], NULL, 0);
+	} else if (strcmp(argv[arg], "-n") == 0) {
+	    arg++;
+	    if (arg >= argc) {
+		fprintf(stderr, "No data supplied for -l\n");
+		return 1;
+	    }
+	    num_errs = strtoul(argv[arg], NULL, 0);
 	} else {
 	    fprintf(stderr, "unknown option: %s\n", argv[arg]);
 	    return 1;
@@ -171,11 +179,13 @@ main(int argc, char *argv[])
     rs_encoder_init(&rse, &rs);
     rs_decoder_init(&rsd, &rs);
 
+    if (do_cpu_usage) {
+	test_loop(loops, num_errs, &rse, &rsd);
+	return 0;
+    }
+
     for (i = 0; i < 32; i++) {
 	unsigned int errs = test_loop(loops, i, &rse, &rsd);
-
-	if (do_cpu_usage)
-	    break;
 
 	if (errs == loops && i <= 16) {
 	    err = 1;
