@@ -537,3 +537,20 @@ rs_decode(struct reed_solomon_decoder *rsd,
 
     return 0;
 }
+
+/*
+ * The decoder doesn't seem to benefit much from the optimizations
+ * done for the encoder, so just call it for now.
+ */
+int
+rs_decode_8(uint8_t *data, unsigned int len,
+	    unsigned int *err_count)
+{
+    struct reed_solomon rs;
+    struct reed_solomon_decoder rsd;
+
+    reed_solomon_init(&rs, 8, 0x187, 32, 112, 11);
+    rs_decoder_init(&rsd, &rs);
+
+    return rs_decode(&rsd, data, len, err_count);
+}

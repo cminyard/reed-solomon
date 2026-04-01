@@ -174,4 +174,17 @@ int rs_decode(struct reed_solomon_decoder *rsd,
 	      uint8_t *buf, unsigned int len,
 	      unsigned int *err_count);
 
+/**
+ * @brief Decode a Reed–Solomon encoded buffer for CCSDS parameter 8
+ * bit without dual-basis symbols.
+ *
+ * @param buf Buffer, including the parity.
+ * @param len Length of the buffer.
+ * @param err_count The number of errors that were corrected.
+ *
+ * @return 0 on success, non-zero on failure.
+ */
+int rs_decode_8(uint8_t *data, unsigned int len,
+		unsigned int *err_count);
+
 #endif /* REED_SOLOMON_H */
