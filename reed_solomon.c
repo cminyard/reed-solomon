@@ -501,7 +501,7 @@ rs_decode(struct reed_solomon_decoder *rsd,
     }
 
     /* Syndromes */
-    count = compute_syndromes(rs, rsd->N, data, rsd->synd);
+    count = compute_syndromes(rs, gf->Np, data, rsd->synd);
 
     if (count == 0) {
 	*err_count = 0;
