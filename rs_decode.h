@@ -12,33 +12,12 @@ RS_NAME(compute_syndromes)(struct reed_solomon *rs, unsigned int pad,
 {
     unsigned int i, j, count = 0;
 
-    if (pad > 0) {
-	memset(S, 0, RS_T * sizeof(gf_sym));
-	for (i = 1; i < pad; i++) {
-	    for (j = 0; j < RS_T; j++) {
-		if (S[j] == 0) {
-		    S[j] = 0;
-		} else {
-		    /* S[j] = (S[j] * (rs->fcr + j) ^ rs->prim) */
-		    S[j] = GF_EXP((GF_LOG(S[j])
-				   + (rs->fcr + j) * rs->prim) % GF_NP);
-		    /*
-		     * Direct calculation above is much faster than the below
-		     * because it doesn't do all the error checks.
-		     *
-		     * S[j] = gf_mul_el(gf, S[j],
-		     *		    gf_pow_l_l(gf, rs->fcr + j, rs->prim)));
-		     */
-		}
-	    }
-	}
-    } else {
-	for (i = 0; i < RS_T; i++)
-	    S[i] = e[0];
-	i = 1;
-    }
+    /* No need to process the pad, the result will be all zeros. */
 
-    for (; i < GF_NP; i++) {
+    for (i = 0; i < RS_T; i++)
+	S[i] = e[0];
+
+    for (i = pad + 1; i < GF_NP; i++) {
 	for (j = 0; j < RS_T; j++) {
 	    if (S[j] == 0) {
 		S[j] = e[i - pad];
