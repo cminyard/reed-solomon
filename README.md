@@ -15,7 +15,37 @@ See reed_solomon.h and tester.c for how to use.
 The Galois field implementation is in galois\_field.c and the API is in
 galois\_field.h
 
+## CCSDS version
+
 There are higher-performance versions of the functions specifically
 for CCSDS coding (without dual basis at the moment).  They don't
-actually have that much better performance, about 10% better.  But
-they are a little more convenient if that's what you are doing.
+actually have that much better performance, about 10% better in my
+testing.  But they are a little more convenient if that's what you are
+doing.
+
+## SIMD
+
+There is SIMD code in here using the gcc vector operations.  It should
+be portable to systems with 16-byte vector operations.  You can enable
+it by setting it in the makefile and setting the ARCH per the comments.
+
+In my tests it doesn't improve performance at all on encode and slows
+it down a lot on decode.
+
+It looks like the compiler produces decent code for the vector
+operations, for the most part, at least is my tests.
+
+It appears the primary issue is having to do the log() and exp()
+operations, since that data has to be pulled out a symbol at a time
+and processed, then put back into the vector.  This is done once in
+the encoder and twice in the decoder.  If those could be done with
+vector operations then SIMD would be a lot faster, but I haven't
+figured out a way to do it.
+
+Also, on x86, it appears getting data into and out of the mmx
+registers requires going through memory.  There doesn't appear to be a
+way to say "set each element to this value" or "pull this element out
+and put it in a processor register.
+
+I'm not an expert in these matters, so I'm leaving it here and maybe
+someone can improve it.

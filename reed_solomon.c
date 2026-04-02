@@ -117,6 +117,8 @@ void
 rs_decoder_init(struct reed_solomon_decoder *rsd,
 		struct reed_solomon *rs)
 {
+    unsigned int i;
+
     rsd->rs = rs;
 #if GF_DYN_ALLOC
     rsd->C = malloc(sizeof(gf_sym) * (RS_MAX_T + 1));
@@ -128,6 +130,23 @@ rs_decoder_init(struct reed_solomon_decoder *rsd,
     rsd->error_idx = malloc(sizeof(unsigned int) * RS_MAX_ERR);
 
     rsd->O = malloc(sizeof(gf_sym) * RS_MAX_ERR);
+#endif
+
+    for (i = 0; i < rs->T; i++)
+	rsd->fcr_j[i] = ((rs->fcr + i) * rs->prim) % rs->gf.Np;
+
+#if DO_SIMD
+    if (rs->can_do_simd) {
+	gf_v16ss *simd_fcr_j = ((gf_v16ss *) rsd->simd_fcr_j);
+	unsigned int j, k;
+
+	for (i = 0, j = 0; i < rs->simd_len; i++) {
+	    for (k = 0; k < 8; k++) {
+		simd_fcr_j[i][k] = rsd->fcr_j[j];
+		j++;
+	    }
+	}
+    }
 #endif
 }
 

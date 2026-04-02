@@ -143,6 +143,11 @@ struct reed_solomon_decoder {
     /* Omega array. */
     gf_sym O[RS_MAX_ERR];
 #endif
+
+    gf_sym fcr_j[RS_MAX_T];
+
+    /* vectors for ((rs->fcr + j) * rs->prim) 5 gf->Np */
+    int16_t simd_fcr_j[RS_MAX_T] __attribute__ ((aligned (16)));
 };
 
 /**

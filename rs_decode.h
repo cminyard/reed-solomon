@@ -7,9 +7,17 @@
  * Zero syndromes = no errors.
  * ------------------------------------------------------------------------- */
 static GF_FORCE_INLINE unsigned int
-RS_NAME(compute_syndromes)(struct reed_solomon *rs, unsigned int pad,
+#if DO_SIMD
+RS_NAME(compute_syndromes_fallback)(struct reed_solomon_decoder *rsd,
+				    unsigned int pad,
+#else
+RS_NAME(compute_syndromes)(struct reed_solomon_decoder *rsd, unsigned int pad,
+#endif
 			   const gf_sym *e, gf_sym *S)
 {
+#if RS_USE_GF
+    struct reed_solomon *rs = rsd->rs;
+#endif
     unsigned int i, j, count = 0;
 
     /* No need to process the pad, the result will be all zeros. */
@@ -18,23 +26,10 @@ RS_NAME(compute_syndromes)(struct reed_solomon *rs, unsigned int pad,
 	S[i] = e[0];
 
     for (i = pad + 1; i < GF_NP; i++) {
-	for (j = 0; j < RS_T; j++) {
-	    if (S[j] == 0) {
-		S[j] = e[i - pad];
-	    } else {
-		/* S[j] = e[i] + (S[j] * (rs->fcr + j) ^ rs->prim) */
-		S[j] = e[i - pad] ^ GF_EXP((GF_LOG(S[j])
-					+ (rs->fcr + j) * rs->prim) % GF_NP);
-		/*
-		 * Direct calculation above is much faster than the below
-		 * because it doesn't do all the error checks.
-		 *
-		 * S[j] = gf_add(e[i = pad],
-		 *	      gf_mul_el(gf, S[j],
-		 *			gf_pow_l_l(gf, rs->fcr + j, rs->prim)));
-		 */
-	    }
-	}
+	for (j = 0; j < RS_T; j++)
+	    /* S[j] = e[i] + (S[j] * (rs->fcr + j) * rs->prim) */
+	    /* (rs->fcr + j) ^ rs->prim is pre-computed. */
+	    S[j] = gf_add(e[i - pad], GF_MUL_EL(S[j], rsd->fcr_j[j]));
     }
 
     for (i = 0; i < RS_T; i++) {
@@ -44,6 +39,82 @@ RS_NAME(compute_syndromes)(struct reed_solomon *rs, unsigned int pad,
 
     return count;
 }
+
+#if DO_SIMD
+static GF_FORCE_INLINE unsigned int
+RS_NAME(compute_syndromes)(struct reed_solomon_decoder *rsd, unsigned int pad,
+			   const gf_sym *e, gf_sym *synd)
+{
+#if RS_USE_GF
+    struct reed_solomon *rs = rsd->rs;
+#endif
+    unsigned int i, j, k, count = 0;
+    static gf_v16ss zerov = { 0 };
+    gf_v16ss S[SIMD_LEN];
+
+    if (!CAN_DO_SIMD)
+	return compute_syndromes_fallback(rsd, pad, e, synd);
+
+    /* No need to process the pad, the result will be all zeros. */
+
+    for (i = 0; i < SIMD_LEN; i++) {
+	for (j = 0; j < 8; j++)
+	    S[i][j] = e[0];
+    }
+
+    for (i = pad + 1; i < GF_NP; i++) {
+	gf_v16ss ev = zerov + e[i - pad];
+
+	for (j = 0; j < SIMD_LEN; j++) {
+	    gf_v16ss cmp, cmp2, tmp, tmp2;
+
+	    /* Handle the zero entries, put e[i - pad] for those in tmp. */
+
+	    cmp = (S[j] == zerov) * -1;
+	    /* cmp will contain 1 where S[i] is zero, 0 where not. */
+	    tmp = ev * cmp;
+	    /* tmp will hold e[i - pad] in all entries where S[i] was zero. */
+
+	    /* S[j] = e[i] + (S[j] * (rs->fcr + j) ^ rs->prim) */
+
+	    /* Convert to log format. */
+	    for (k = 0; k < 8; k++)
+		tmp2[k] = GF_LOG(S[j][k]);
+
+	    tmp2 += ((gf_v16ss *) rsd->simd_fcr_j)[j];
+
+	    /* Do the modulo operation. */
+	    cmp2 = (tmp2 >= VECNP) * VECNP;
+	    /* cmp2 will be -Np for each element >= Np, 0 for others. */
+	    tmp2 += cmp2;
+	    /* Each element >= Np will have Np subtracted from it now. */
+
+	    /* Convert back from log to exp format. */
+	    for (k = 0; k < 8; k++)
+		tmp2[k] = GF_EXP(tmp2[k]);
+
+	    tmp2 ^= ev;
+
+	    /* Set the entries that were zero in S[j] to zero. */
+	    cmp ^= 1; /* Invert cmp to work on the non-zero entries. */
+	    tmp2 *= cmp;
+
+	    S[j] = tmp + tmp2;
+	}
+    }
+
+    for (i = 0, j = 0; j < SIMD_LEN; j++) {
+	for (k = 0; k < 8; k++) {
+	    synd[i] = S[j][k];
+	    if (synd[i])
+		count++;
+	    i++;
+	}
+    }
+
+    return count;
+}
+#endif
 
 /* -------------------------------------------------------------------------
  * 2) Berlekamp–Massey algorithm
@@ -243,7 +314,7 @@ RS_DEC_START()
     pad = GF_NP - len;
 
     /* Syndromes */
-    count = RS_NAME(compute_syndromes)(rs, pad, data, rsd->synd);
+    count = RS_NAME(compute_syndromes)(rsd, pad, data, rsd->synd);
 
     if (count == 0) {
 	*err_count = 0;

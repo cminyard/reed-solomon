@@ -1,17 +1,19 @@
 
 all: tester
 
-# There is SIMD implemented for rs_encoder_8, but it doesn't seem to
-# improve the performance at all, at least on the AMD processor I'm
-# using.
-DO_SIMD = 1
+# There is SIMD implemented for all encoders and decoders, but it
+# doesn't seem to improve the performance at all, at least on the AMD
+# processor I'm using.  It actually slows things down quite a bit on
+# decode.
+DO_SIMD = 0
 
 # X86 support
-# popcnt was added in the Nehalem CPU
+# popcnt was added in the Nehalem CPU.  It's an important perforamnce
+# improvement.
 ARCH = -march=native
 # If you set DO_SIMD, adding -msse2, or whatever for your processor,
 # will be required.
-ARCH += -msse2
+#ARCH += -msse2
 
 CFLAGS = -g -Wall -O2 -DCONVCODE_TESTS -DDO_SIMD=$(DO_SIMD) $(ARCH)
 
