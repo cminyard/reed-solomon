@@ -303,7 +303,20 @@ rs_decode_8(uint8_t *data, unsigned int len, \
 }
 #define RS_NAME(x) CCSDS_ ## x
 
+#if DO_SIMD && 1
+typedef int16_t gf_v16ss __attribute__ ((vector_size (16)));
+static gf_v16ss CCSDS_simd_generator[4] = {
+    {   0, 249,  59,  66,   4,  43, 126, 251 },
+    {  97,  30,   3, 213,  50,  66, 170,   5 },
+    {  24,   5, 170,  66,  50, 213,   3,  30 },
+    {  97, 251, 126,  43,   4,  66,  59, 249 }
+};
+#define SIMD_GEN CCSDS_simd_generator
+#include "rs_encode_simd.h"
+#undef SIMD_GEN
+#else
 #include "rs_encode.h"
+#endif
 #include "rs_decode.h"
 
 #undef RS_T
