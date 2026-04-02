@@ -33,7 +33,7 @@ In my tests it doesn't improve performance at all on encode and slows
 it down a lot on decode.
 
 It looks like the compiler produces decent code for the vector
-operations, for the most part, at least is my tests.
+operations, for the most part, at least in my looking at it.
 
 It appears the primary issue is having to do the log() and exp()
 operations, since that data has to be pulled out a symbol at a time
