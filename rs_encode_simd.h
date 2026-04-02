@@ -12,7 +12,7 @@ RS_ENC_START()
      * Does a shift to the left with __builtin_shuffle.  See gcc
      * docs for details.
      */
-    static gf_v16ss shift_mask = { 1, 2, 3, 4, 5, 6, 7, 8 };
+    static gf_v16ss shift_mask = { 1, 2, 3, 4, 5, 6, 7, 7 };
     static gf_v16ss zerov = { 0 };
     /* Parity array, as 4 vectors of 8 elements. */
     gf_v16ss p[SIMD_LEN];
@@ -65,10 +65,13 @@ RS_ENC_START()
 	 * This shifts all the data to the left and adds the new
 	 * element at the end.
 	 */
-	p[0] = __builtin_shuffle(p[0], p[1], shift_mask);
-	p[1] = __builtin_shuffle(p[1], p[2], shift_mask);
-	p[2] = __builtin_shuffle(p[2], p[3], shift_mask);
-	p[3] = __builtin_shuffle(p[3], p[0], shift_mask);
+	p[0] = __builtin_shuffle(p[0], shift_mask);
+	p[0][7] = p[1][0];
+	p[1] = __builtin_shuffle(p[1], shift_mask);
+	p[1][7] = p[2][0];
+	p[2] = __builtin_shuffle(p[2], shift_mask);
+	p[2][7] = p[3][0];
+	p[3] = __builtin_shuffle(p[3], shift_mask);
 	p[3][7] = GF_MUL_LL(fb, RS_GENERATOR[0]);
     }
 

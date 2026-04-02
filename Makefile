@@ -16,7 +16,7 @@ ARCH += -msse2
 CFLAGS = -g -Wall -O2 -DCONVCODE_TESTS -DDO_SIMD=$(DO_SIMD) $(ARCH)
 
 tester: tester.o reed_solomon.o galois_field.o
-	gcc $(CFLAGS) -o $@ $^ -lfec
+	$(CC) $(CFLAGS) -o $@ $^ -lfec
 
 tester.o: tester.c reed_solomon.h galois_field.h
 
