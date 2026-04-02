@@ -28,6 +28,11 @@ struct reed_solomon {
     unsigned int fcr;
 
     struct galois_field gf;
+
+    /* For use by SIMD. */
+    int16_t simd_vecnp[8] __attribute__ ((aligned (16)));
+    bool can_do_simd;
+    unsigned int simd_len;
 };
 
 /**
@@ -58,10 +63,9 @@ struct reed_solomon_encoder {
     /* Generator polynomial g(x) */
     gf_sym generator[RS_MAX_T];
 #endif
+
+    /* For use by SIMD. */
     int16_t simd_gen[RS_MAX_T] __attribute__ ((aligned (16)));
-    int16_t simd_vecnp[8] __attribute__ ((aligned (16)));
-    bool can_do_simd;
-    unsigned int simd_len;
 };
 
 /**

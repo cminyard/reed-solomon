@@ -37,6 +37,18 @@ reed_solomon_init(struct reed_solomon *rs, unsigned int m,
 	;
     rs->iprim /= prim;
 
+#if DO_SIMD
+    if (rs->T % 8 == 0) {
+	gf_v16ss *simd_vecnp = ((gf_v16ss *) rs->simd_vecnp);
+	unsigned int i;
+
+	rs->can_do_simd = true;
+	rs->simd_len = rs->T / 8;
+	for (i = 0; i < 8; i++)
+	    simd_vecnp[0][i] = rs->gf.Np;
+    }
+#endif
+
     return 0;
 }
 
@@ -87,21 +99,16 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
 	rse->generator[i] = gf_log_nc(gf, rse->generator[i]);
 
 #if DO_SIMD
-    if (rs->T % 8 == 0) {
+    if (rs->can_do_simd) {
 	gf_v16ss *simd_gen = ((gf_v16ss *) rse->simd_gen);
-	gf_v16ss *simd_vecnp = ((gf_v16ss *) rse->simd_vecnp);
 	unsigned int k;
 
-	rse->can_do_simd = true;
-	rse->simd_len = rs->T / 8;
-	for (i = 0, j = 0; j < rse->simd_len; j++) {
+	for (i = 0, j = 0; j < rs->simd_len; j++) {
 	    for (k = 0; k < 8; k++) {
 		simd_gen[j][k] = rse->generator[rs->T - i];
 		i++;
 	    }
 	}
-	for (i = 0; i < 8; i++)
-	    simd_vecnp[0][i] = gf->Np;
     }
 #endif
 }
@@ -281,16 +288,11 @@ rs_encode(struct reed_solomon_encoder *rse, \
 { \
     struct reed_solomon *rs = rse->rs;
 #define SIMD_GEN ((gf_v16ss *) rse->simd_gen)
-#define CAN_DO_SIMD rse->can_do_simd
-#define SIMD_LEN rse->simd_len
+#define CAN_DO_SIMD rs->can_do_simd
+#define SIMD_LEN rs->simd_len
 #define SIMD_FALLBACK rs_encode_fallback(rse, inbuf, len, parity)
-#define VECNP (((gf_v16ss *) rse->simd_vecnp)[0])
+#define VECNP (((gf_v16ss *) rs->simd_vecnp)[0])
 #include "rs_encode_simd.h"
-#undef SIMD_GEN
-#undef CAN_DO_SIMD
-#undef SIMD_LEN
-#undef SIMD_FALLBACK
-#undef VECNP
 #else
 #define RS_ENC_START() \
 int \
@@ -323,6 +325,11 @@ rs_encode(struct reed_solomon_encoder *rse, \
 #undef RS_DEC_START
 #undef RS_DEC_END
 #undef RS_NAME
+#undef SIMD_GEN
+#undef CAN_DO_SIMD
+#undef SIMD_LEN
+#undef SIMD_FALLBACK
+#undef VECNP
 
 /* Define the high-performance CCSDS Reed-Solomon coder. */
 #define RS_T 32
@@ -380,11 +387,6 @@ static gf_v16ss CCSDS_vecnp = {
 #define SIMD_FALLBACK 1 /* Should not be possible. */
 #define VECNP CCSDS_vecnp
 #include "rs_encode_simd.h"
-#undef SIMD_GEN
-#undef CAN_DO_SIMD
-#undef SIMD_LEN
-#undef SIMD_FALLBACK
-#undef VECNP
 #else
 #include "rs_encode.h"
 #endif
@@ -408,3 +410,8 @@ static gf_v16ss CCSDS_vecnp = {
 #undef RS_GENERATOR
 #undef RS_ENC_START
 #undef RS_ENC_END
+#undef SIMD_GEN
+#undef CAN_DO_SIMD
+#undef SIMD_LEN
+#undef SIMD_FALLBACK
+#undef VECNP

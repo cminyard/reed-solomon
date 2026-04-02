@@ -6,7 +6,7 @@
 #include <time.h>
 
 #define DO_RS_CHECK 1
-#define DO_LIBFEC_CHECK 0
+#define DO_LIBFEC_CHECK 1
 
 #include "reed_solomon.h"
 
