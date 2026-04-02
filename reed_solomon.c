@@ -3,6 +3,16 @@
 #include <string.h>
 #include "reed_solomon.h"
 
+#if DO_SIMD
+/*
+ * Do 16 bit elements of vectors.  You can't use 8 because the result
+ * of the galois multiply may be >255.  So we get 8 elements per
+ * 16-byte vector.  And it must be signed so the modulo operation can
+ * work correctly.
+ */
+typedef int16_t gf_v16ss __attribute__ ((vector_size (16)));
+#endif
+
 int
 reed_solomon_init(struct reed_solomon *rs, unsigned int m,
 		  unsigned int gfpoly, unsigned int T,
@@ -75,6 +85,25 @@ rs_encoder_init(struct reed_solomon_encoder *rse,
     /* Put the generators into log format to speed calculations. */
     for (i = 0; i < rs->T; i++)
 	rse->generator[i] = gf_log_nc(gf, rse->generator[i]);
+
+#if DO_SIMD
+    if (rs->T % 8 == 0) {
+	gf_v16ss *simd_gen = ((gf_v16ss *) rse->simd_gen);
+	gf_v16ss *simd_vecnp = ((gf_v16ss *) rse->simd_vecnp);
+	unsigned int k;
+
+	rse->can_do_simd = true;
+	rse->simd_len = rs->T / 8;
+	for (i = 0, j = 0; j < rse->simd_len; j++) {
+	    for (k = 0; k < 8; k++) {
+		simd_gen[j][k] = rse->generator[rs->T - i];
+		i++;
+	    }
+	}
+	for (i = 0; i < 8; i++)
+	    simd_vecnp[0][i] = gf->Np;
+    }
+#endif
 }
 
 void
@@ -220,12 +249,6 @@ static GF_FORCE_INLINE void gf_shift(gf_sym *x, unsigned int n, unsigned int k)
 #define RS_LEN len
 #define RS_USE_GF 1
 #define RS_GENERATOR rse->generator
-#define RS_ENC_START() \
-int \
-rs_encode(struct reed_solomon_encoder *rse, \
-	  uint8_t *inbuf, unsigned int len, uint8_t *parity) \
-{ \
-    struct reed_solomon *rs = rse->rs;
 #define RS_ENC_END \
 }
 #define RS_DEC_START() \
@@ -239,7 +262,44 @@ rs_decode(struct reed_solomon_decoder *rsd, \
 }
 #define RS_NAME(x) x
 
+#if DO_SIMD
+/* First create a fallback routine if SIMD isn't possible for this data. */
+#define RS_ENC_START() \
+int \
+rs_encode_fallback(struct reed_solomon_encoder *rse, \
+		   uint8_t *inbuf, unsigned int len, uint8_t *parity)	\
+{ \
+    struct reed_solomon *rs = rse->rs;
 #include "rs_encode.h"
+#undef RS_ENC_START
+
+/* Now create the SIMD version. */
+#define RS_ENC_START()				\
+int \
+rs_encode(struct reed_solomon_encoder *rse, \
+	  uint8_t *inbuf, unsigned int len, uint8_t *parity) \
+{ \
+    struct reed_solomon *rs = rse->rs;
+#define SIMD_GEN ((gf_v16ss *) rse->simd_gen)
+#define CAN_DO_SIMD rse->can_do_simd
+#define SIMD_LEN rse->simd_len
+#define SIMD_FALLBACK rs_encode_fallback(rse, inbuf, len, parity)
+#define VECNP (((gf_v16ss *) rse->simd_vecnp)[0])
+#include "rs_encode_simd.h"
+#undef SIMD_GEN
+#undef CAN_DO_SIMD
+#undef SIMD_LEN
+#undef SIMD_FALLBACK
+#undef VECNP
+#else
+#define RS_ENC_START() \
+int \
+rs_encode(struct reed_solomon_encoder *rse, \
+	  uint8_t *inbuf, unsigned int len, uint8_t *parity) \
+{ \
+    struct reed_solomon *rs = rse->rs;
+#include "rs_encode.h"
+#endif
 #include "rs_decode.h"
 
 #undef RS_T
@@ -303,17 +363,28 @@ rs_decode_8(uint8_t *data, unsigned int len, \
 }
 #define RS_NAME(x) CCSDS_ ## x
 
-#if DO_SIMD && 1
-typedef int16_t gf_v16ss __attribute__ ((vector_size (16)));
+#if DO_SIMD
 static gf_v16ss CCSDS_simd_generator[4] = {
     {   0, 249,  59,  66,   4,  43, 126, 251 },
     {  97,  30,   3, 213,  50,  66, 170,   5 },
     {  24,   5, 170,  66,  50, 213,   3,  30 },
     {  97, 251, 126,  43,   4,  66,  59, 249 }
 };
+static gf_v16ss CCSDS_vecnp = {
+    GF_NP, GF_NP, GF_NP, GF_NP,
+    GF_NP, GF_NP, GF_NP, GF_NP
+};
 #define SIMD_GEN CCSDS_simd_generator
+#define CAN_DO_SIMD true
+#define SIMD_LEN 4
+#define SIMD_FALLBACK 1 /* Should not be possible. */
+#define VECNP CCSDS_vecnp
 #include "rs_encode_simd.h"
 #undef SIMD_GEN
+#undef CAN_DO_SIMD
+#undef SIMD_LEN
+#undef SIMD_FALLBACK
+#undef VECNP
 #else
 #include "rs_encode.h"
 #endif

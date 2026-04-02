@@ -11,7 +11,7 @@ DO_SIMD = 1
 ARCH = -march=native
 # If you set DO_SIMD, adding -msse2, or whatever for your processor,
 # will be required.
-#ARCH += -msse2
+ARCH += -msse2
 
 CFLAGS = -g -Wall -O2 -DCONVCODE_TESTS -DDO_SIMD=$(DO_SIMD) $(ARCH)
 
