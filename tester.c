@@ -31,6 +31,10 @@ test_one(unsigned int num_errs,
     bool errpos[255] = { false };
     unsigned int errcount = 0;
 
+    if (enc_len == 0)
+	/* If not specified, pick a random length between 1 and 223. */
+	enc_len = rand() % 223 + 1;
+
     for (i = 0; i < enc_len; i++) {
 	origbuf[i] = rand();
 #if DO_RS_CHECK
@@ -150,7 +154,7 @@ main(int argc, char *argv[])
     unsigned int loops = 100;
     bool do_cpu_usage = false;
     unsigned int num_errs = 8;
-    unsigned int enc_len = 223;
+    unsigned int enc_len = 0;
     unsigned int i;
     int arg, err = 0;
 

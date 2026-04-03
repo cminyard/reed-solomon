@@ -10,6 +10,10 @@ wrong and I had to rewrite all the algorithms pretty much from
 scratch.  Not much is left of the original except the overall
 structure.
 
+This is made to be easy to put into an embedded system and use.  It's
+stand-alone and it would be easy to chop out the parts you don't need
+to make it small.
+
 See reed_solomon.h and tester.c for how to use.
 
 The Galois field implementation is in galois\_field.c and the API is in
