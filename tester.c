@@ -16,9 +16,11 @@
 
 static unsigned int
 test_one(unsigned int num_errs,
+	 double error_rate,
 	 unsigned int enc_len,
 	 struct reed_solomon_encoder *rse,
-	 struct reed_solomon_decoder *rsd)
+	 struct reed_solomon_decoder *rsd,
+	 unsigned int *injcount)
 {
     unsigned int i;
     uint8_t origbuf[255];
@@ -75,30 +77,45 @@ test_one(unsigned int num_errs,
 #endif
 
     /* Inject some errors. */
-    for (i = 0; i < num_errs; ) {
-	unsigned int pos = rand() % (enc_len + 32) * 8;
+    if (error_rate > 0.0) {
+	unsigned int error_rate_inv = 1 / error_rate;
 
-	if (errpos[pos / 8])
-	    continue;
+	for (i = 0; i < 255 * 8; i++) {
+	    bool do_err = rand() % error_rate_inv == 1;
+	    if (do_err) {
+		buf[i / 8] ^= 1 << (i % 8);
+#if 0
+		printf("Injecting error at bit %u\n", i);
+#endif
+		(*injcount)++;
+	    }
+	}
+    } else {
+	for (i = 0; i < num_errs; ) {
+	    unsigned int pos = rand() % (enc_len + 32) * 8;
+
+	    if (errpos[pos / 8])
+		continue;
 
 #if DO_RS_CHECK
-	buf[pos / 8] ^= 1 << (pos % 8);
+	    buf[pos / 8] ^= 1 << (pos % 8);
 #endif
 #if DO_LIBFEC_CHECK
-	buf2[pos / 8] ^= 1 << (pos % 8);
+	    buf2[pos / 8] ^= 1 << (pos % 8);
 #endif
 #if 0
-	printf("Injecting error at byte %u\n", pos / 8);
+	    printf("Injecting error at bit %u\n", pos);
 #endif
-	errpos[pos / 8] = true;
-	i++;
+	    errpos[pos / 8] = true;
+	    i++;
+	}
     }
 #if DO_RS_CHECK
     if (rs_decode(rsd, buf, enc_len + 32, &errcount)) {
-	if (num_errs <= 16)
+	if (num_errs <= 16 && error_rate <= 0)
 	    printf("Decode error\n");
 	return 1;
-    } else {
+    } else if (error_rate <= 0.0) {
 	if (errcount != num_errs) {
 	    printf("Error count mismatch: %u %u\n", num_errs, errcount);
 	    return 1;
@@ -115,7 +132,7 @@ test_one(unsigned int num_errs,
 
 #if DO_LIBFEC_CHECK
     errcount = decode_rs_8(buf2, NULL, 0, 223 - enc_len);
-    if (errcount != num_errs) {
+    if (error_rate <= 0.0 && errcount != num_errs) {
 	printf("Bad err count 1\n");
     }
 
@@ -133,15 +150,22 @@ test_one(unsigned int num_errs,
 static unsigned int
 test_loop(unsigned int num_loops,
 	  unsigned int num_errs,
+	  double error_rate,
 	  unsigned int enc_len,
 	  struct reed_solomon_encoder *rse,
 	  struct reed_solomon_decoder *rsd)
 {
-    unsigned int i, errcount = 0;
+    unsigned int i, errcount = 0, injcount = 0;
 
     for (i = 0; i < num_loops; i++)
-	errcount += test_one(num_errs, enc_len, rse, rsd);
-    printf("Testing with %u errors: %u output errors\n", num_errs, errcount);
+	errcount += test_one(num_errs, error_rate, enc_len, rse, rsd,
+			     &injcount);
+    if (error_rate > 0)
+	printf("Testing with error rate %f: injected %d errors, %u output errors\n",
+	       error_rate, injcount, errcount);
+    else
+	printf("Testing with %u errors: %u output errors\n",
+	       num_errs, errcount);
     return errcount;
 }
 
@@ -157,6 +181,7 @@ main(int argc, char *argv[])
     unsigned int enc_len = 0;
     unsigned int i;
     int arg, err = 0;
+    double error_rate = -1.0;;
 
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
@@ -173,7 +198,7 @@ main(int argc, char *argv[])
 	} else if (strcmp(argv[arg], "-n") == 0) {
 	    arg++;
 	    if (arg >= argc) {
-		fprintf(stderr, "No data supplied for -n\n");
+		fprintf(stderr, "No  data supplied for -n\n");
 		return 1;
 	    }
 	    num_errs = strtoul(argv[arg], NULL, 0);
@@ -184,6 +209,13 @@ main(int argc, char *argv[])
 		return 1;
 	    }
 	    enc_len = strtoul(argv[arg], NULL, 0);
+	} else if (strcmp(argv[arg], "-er") == 0) {
+	    arg++;
+	    if (arg >= argc) {
+		fprintf(stderr, "No data supplied for -er\n");
+		return 1;
+	    }
+	    error_rate = strtod(argv[arg], NULL);
 	} else {
 	    fprintf(stderr, "unknown option: %s\n", argv[arg]);
 	    return 1;
@@ -196,12 +228,18 @@ main(int argc, char *argv[])
     rs_decoder_init(&rsd, &rs);
 
     if (do_cpu_usage) {
-	test_loop(loops, num_errs, enc_len, &rse, &rsd);
+	test_loop(loops, num_errs, error_rate,  enc_len, &rse, &rsd);
 	return 0;
     }
 
+    if (error_rate > 0.0) {
+	test_loop(loops, 0, error_rate, enc_len, &rse, &rsd);
+	goto out;
+    }
+
     for (i = 0; i < 32; i++) {
-	unsigned int errs = test_loop(loops, i, enc_len, &rse, &rsd);
+	unsigned int errs = test_loop(loops, i, error_rate,
+				      enc_len, &rse, &rsd);
 
 	if (errs == loops && i <= 16) {
 	    err = 1;
@@ -212,6 +250,6 @@ main(int argc, char *argv[])
 	    break;
 	}
     }
-
+ out:
     return err;
 }
