@@ -1,5 +1,5 @@
 
-all: tester
+all: reed_solomon
 
 # There is SIMD implemented for all encoders and decoders, but it
 # doesn't seem to improve the performance at all, at least on the AMD
@@ -15,20 +15,18 @@ ARCH = -march=native
 # will be required.
 #ARCH += -msse2
 
-CFLAGS = -g -Wall -O2 -DCONVCODE_TESTS -DDO_SIMD=$(DO_SIMD) $(ARCH)
+CFLAGS = -g -Wall -O2 -DREED_SOLOMON_TESTS -DDO_SIMD=$(DO_SIMD) $(ARCH)
 
-tester: tester.o reed_solomon.o galois_field.o
+reed_solomon: reed_solomon.o galois_field.o
 	$(CC) $(CFLAGS) -o $@ $^ -lfec
-
-tester.o: tester.c reed_solomon.h galois_field.h
 
 reed_solomon.o: reed_solomon.c reed_solomon.h galois_field.h \
 	rs_encode.h rs_decode.h rs_encode_simd.h
 
 galois_field.o: galois_field.c galois_field.h
 
-check:	tester
-	./tester
+check:	reed_solomon
+	./reed_solomon
 
 clean:
-	rm -f *.o tester
+	rm -f *.o reed_solomon
